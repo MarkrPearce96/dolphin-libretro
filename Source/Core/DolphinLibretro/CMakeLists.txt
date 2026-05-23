@@ -12,9 +12,17 @@ add_library(dolphin_libretro MODULE)
 target_sources(dolphin_libretro PRIVATE
     LibretroFrontend.cpp
     LibretroEnvironment.cpp
+    LibretroMetalContext.mm
     HostStubs.cpp
     EmuThread.cpp
 )
+
+# Objective-C++ source needs ARC + AppKit/Metal/QuartzCore frameworks.
+if(APPLE)
+    set_source_files_properties(LibretroMetalContext.mm PROPERTIES
+        COMPILE_FLAGS "-fobjc-arc"
+    )
+endif()
 
 target_include_directories(dolphin_libretro PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -36,6 +44,11 @@ set_target_properties(dolphin_libretro PROPERTIES
 )
 if(APPLE)
     set_target_properties(dolphin_libretro PROPERTIES SUFFIX ".dylib")
+    target_link_libraries(dolphin_libretro PRIVATE
+        "-framework AppKit"
+        "-framework Metal"
+        "-framework QuartzCore"
+    )
 endif()
 
 add_subdirectory(tools)
