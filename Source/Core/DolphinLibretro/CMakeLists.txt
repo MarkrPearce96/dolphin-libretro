@@ -27,11 +27,15 @@ target_link_libraries(dolphin_libretro PRIVATE
     uicommon
 )
 
-# Libretro naming convention: dolphin_libretro.dylib (no "lib" prefix).
+# Libretro naming convention on macOS: dolphin_libretro.dylib (no "lib" prefix,
+# .dylib extension). CMake's MODULE libraries default to .so on macOS — override.
 set_target_properties(dolphin_libretro PROPERTIES
     PREFIX ""
     OUTPUT_NAME "dolphin_libretro"
 )
+if(APPLE)
+    set_target_properties(dolphin_libretro PROPERTIES SUFFIX ".dylib")
+endif()
 
 # Hide all symbols by default — libretro frontends only need the retro_*
 # C ABI. The RETRO_API macro in libretro.h adds explicit
