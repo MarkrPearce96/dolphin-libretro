@@ -10,6 +10,11 @@
 #include <array>
 #include <chrono>
 
+// LibretroFrontend.cpp owns the callback storage; we read it from there.
+namespace DolphinLibretro::Frontend {
+extern retro_audio_sample_batch_t g_audio_batch_cb;
+}  // namespace DolphinLibretro::Frontend
+
 namespace DolphinLibretro {
 
 namespace {
@@ -63,15 +68,14 @@ void LibretroAudioStream::DrainLoop()
 
   while (m_should_run.load())
   {
-    if (!mixer)
+    if (!mixer || !Frontend::g_audio_batch_cb)
     {
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
       continue;
     }
 
     mixer->Mix(buf.data(), kBatchFrames);
-    // T5 will replace this stub with: Frontend::g_audio_batch_cb(buf.data(), kBatchFrames);
-    Environment::Log(RETRO_LOG_DEBUG, "[Audio] would push %zu frames", kBatchFrames);
+    Frontend::g_audio_batch_cb(buf.data(), kBatchFrames);
   }
 }
 
