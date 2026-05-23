@@ -15,8 +15,12 @@
 #include "DolphinLibretro/LibretroAudioStream.h"
 #include "DolphinLibretro/LibretroInputSource.h"
 
+#include "Common/Config/Config.h"
 #include "Common/WindowSystemInfo.h"
+#include "Core/Config/MainSettings.h"
+#include "Core/Core.h"
 #include "Core/System.h"
+#include "UICommon/UICommon.h"
 
 #include <memory>
 #include <string>
@@ -105,12 +109,20 @@ RETRO_API void retro_set_input_state(retro_input_state_t cb)
 
 RETRO_API void retro_init(void)
 {
+    // Set Dolphin's User directory. SP2 uses a fixed /tmp path; SP3 should
+    // route this through RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY so the host
+    // can put it under its own data root.
+    UICommon::SetUserDirectory("/tmp/dolphin-libretro-user");
+    UICommon::Init();
+    DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] UICommon::Init done");
+
     s_emu_thread = std::make_unique<DolphinLibretro::EmuThread>();
 }
 
 RETRO_API void retro_deinit(void)
 {
     s_emu_thread.reset();
+    UICommon::Shutdown();
 }
 
 RETRO_API void retro_set_controller_port_device(unsigned port, unsigned device)
@@ -129,6 +141,22 @@ RETRO_API void retro_run(void)
         DolphinLibretro::Frontend::g_input_poll_cb();
 
     DolphinLibretro::Input::PollFromFrontend();
+
+    // Dolphin queues host-side jobs (config changes, async results) that need
+    // the main thread to dispatch — DolphinNoGUI/PlatformHeadless::MainLoop
+    // calls this every iteration. Without it, emulation stalls after boot.
+    Core::HostDispatchJobs(Core::System::GetInstance());
+
+    // Log Dolphin's state every ~60 calls (~1s) for smoke-test debug visibility.
+    static unsigned s_log_counter = 0;
+    if (++s_log_counter % 60 == 1)
+    {
+        const Core::State state = Core::GetState(Core::System::GetInstance());
+        DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+            "[retro_run] Core::State=%d running=%d",
+            static_cast<int>(state),
+            s_emu_thread ? s_emu_thread->IsRunning() : -1);
+    }
 
     if (s_emu_thread && s_emu_thread->IsRunning())
         s_emu_thread->WaitForFrame();
@@ -157,14 +185,24 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game)
     if (!DolphinLibretro::Metal::PrepareWindowSystemInfo(nsview, &s_wsi))
         return false;
 
-    // 2. Install our SoundStream into Dolphin's Core::System (ownership transferred).
+    // 2. Force Metal as the GFX backend. Without this, Dolphin's default may
+    //    be OGL or Software; the WSI we built has MacOS NSView ready for Metal.
+    Config::SetCurrent(Config::MAIN_GFX_BACKEND, std::string("Metal"));
+
+    // 3. Init Dolphin's controllers (needs the WSI for SDL video subsystem etc.).
+    //    Mirrors DolphinNoGUI/MainNoGUI.cpp:273. Must come BEFORE BootCore.
+    UICommon::InitControllers(s_wsi);
+    DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] UICommon::InitControllers done");
+
+    // 3. Install our SoundStream into Dolphin's Core::System (ownership transferred).
     Core::System::GetInstance().SetSoundStream(
         std::make_unique<DolphinLibretro::LibretroAudioStream>());
 
-    // 3. Install our InputBackend with the ControllerInterface.
+    // 4. Install our InputBackend with the ControllerInterface (after UICommon::InitControllers
+    //    so g_controller_interface is initialized).
     DolphinLibretro::Input::Install(DolphinLibretro::Frontend::g_input_state_cb);
 
-    // 4. Boot via EmuThread.
+    // 5. Boot via EmuThread.
     return s_emu_thread->StartGame(game->path, s_wsi);
 }
 
@@ -178,6 +216,7 @@ RETRO_API void retro_unload_game(void)
     if (s_emu_thread)
         s_emu_thread->StopGame();
     DolphinLibretro::Input::Uninstall();
+    UICommon::ShutdownControllers();
     DolphinLibretro::Metal::ReleaseWindowSystemInfo(&s_wsi);
 }
 
