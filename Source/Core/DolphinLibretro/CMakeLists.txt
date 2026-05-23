@@ -37,6 +37,8 @@ if(APPLE)
     set_target_properties(dolphin_libretro PROPERTIES SUFFIX ".dylib")
 endif()
 
+add_subdirectory(tools)
+
 # Hide all symbols by default — libretro frontends only need the retro_*
 # C ABI. The RETRO_API macro in libretro.h adds explicit
 # __attribute__((visibility("default"))) per function on non-Windows.
