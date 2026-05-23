@@ -38,7 +38,11 @@ bool Host_UIBlocksControllerState()
 
 void Host_Message(HostMessageID id)
 {
-    // SP2 wires WMUserStop to signal EmuThread shutdown.
+    // SP2: Dolphin signals shutdown via WMUserStop. The libretro layer polls
+    // EmuThread::IsRunning every retro_run and Dolphin's own shutdown sequence
+    // sets that to false via EmuThread::StopGame, so we don't need to forward
+    // here. SP3 wires a proper notification path when the host adapter needs
+    // synchronous teardown coordination.
     (void)id;
 }
 
