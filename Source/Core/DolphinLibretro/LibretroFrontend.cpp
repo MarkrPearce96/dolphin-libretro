@@ -16,12 +16,15 @@
 #include "DolphinLibretro/LibretroInputSource.h"
 
 #include "Common/Config/Config.h"
+#include "Common/Logging/Log.h"
+#include "Common/Logging/LogManager.h"
 #include "Common/WindowSystemInfo.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/System.h"
 #include "UICommon/UICommon.h"
 
+#include <cstdlib>
 #include <memory>
 #include <string>
 
@@ -114,6 +117,22 @@ RETRO_API void retro_init(void)
     // can put it under its own data root.
     UICommon::SetUserDirectory("/tmp/dolphin-libretro-user");
     UICommon::Init();
+
+    // Optionally route Dolphin's own LogManager output to stderr at INFO level
+    // with every log type enabled — gated behind RETRONEST_DOLPHIN_LOG so it's
+    // available for debugging video/audio/boot issues without spamming normal
+    // runs. RetroNest captures the core's stderr.
+    if (std::getenv("RETRONEST_DOLPHIN_LOG"))
+    {
+        Config::SetBaseOrCurrent(Common::Log::LOGGER_VERBOSITY, Common::Log::LogLevel::LINFO);
+        if (auto* lm = Common::Log::LogManager::GetInstance())
+        {
+            lm->EnableListener(Common::Log::LogListener::CONSOLE_LISTENER, true);
+            for (int t = 0; t < static_cast<int>(Common::Log::LogType::NUMBER_OF_LOGS); ++t)
+                lm->SetEnable(static_cast<Common::Log::LogType>(t), true);
+        }
+    }
+
     DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] UICommon::Init done");
 
     s_emu_thread = std::make_unique<DolphinLibretro::EmuThread>();
@@ -146,17 +165,6 @@ RETRO_API void retro_run(void)
     // the main thread to dispatch — DolphinNoGUI/PlatformHeadless::MainLoop
     // calls this every iteration. Without it, emulation stalls after boot.
     Core::HostDispatchJobs(Core::System::GetInstance());
-
-    // Log Dolphin's state every ~60 calls (~1s) for smoke-test debug visibility.
-    static unsigned s_log_counter = 0;
-    if (++s_log_counter % 60 == 1)
-    {
-        const Core::State state = Core::GetState(Core::System::GetInstance());
-        DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
-            "[retro_run] Core::State=%d running=%d",
-            static_cast<int>(state),
-            s_emu_thread ? s_emu_thread->IsRunning() : -1);
-    }
 
     if (s_emu_thread && s_emu_thread->IsRunning())
         s_emu_thread->WaitForFrame();

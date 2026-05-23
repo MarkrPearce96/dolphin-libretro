@@ -163,24 +163,70 @@ void Metal::VideoBackend::PrepareWindow(WindowSystemInfo& wsi)
   if (wsi.type != WindowSystemType::MacOS)
     return;
   NSView* view = static_cast<NSView*>(wsi.render_surface);
-  CAMetalLayer* layer = [CAMetalLayer layer];
 
   Util::PopulateBackendInfo(&g_backend_info);
+  const bool want_hdr = g_backend_info.bSupportsHDROutput && g_Config.bHDR;
 
-  if (g_backend_info.bSupportsHDROutput && g_Config.bHDR)
-  {
-    [layer setWantsExtendedDynamicRangeContent:YES];
-    [layer setPixelFormat:MTLPixelFormatRGBA16Float];
+  // All NSView/CALayer access must run on the main thread. DolphinQt always
+  // calls BootCore from the main thread so this was implicitly safe; libretro
+  // frontends call BootCore from a worker thread, where view/layer mutations
+  // silently fail to update the visual tree (the view stays black). Wrap in a
+  // main-thread dispatch — when already on main this runs inline.
+  __block CAMetalLayer* result_layer = nil;
+  dispatch_block_t attach = ^{
+    // Reuse the view's existing CAMetalLayer if the host already made the view
+    // layer-backed by one (Qt's QWindow with QSurface::MetalSurface does this).
+    // Calling setLayer: with our own CAMetalLayer on an already-layer-backed
+    // NSView does NOT replace view.layer — AppKit keeps its own, leaving our
+    // layer orphaned and offscreen (frames present to a layer the window never
+    // shows, i.e. a black screen). Reusing the host's layer is what makes the
+    // rendered content visible.
+    CAMetalLayer* layer = nil;
+    bool created_layer = false;
+    if ([view.layer isKindOfClass:[CAMetalLayer class]])
+    {
+      layer = static_cast<CAMetalLayer*>(view.layer);
+    }
+    else
+    {
+      layer = [CAMetalLayer layer];
+      created_layer = true;
+    }
 
-    const CFStringRef name = kCGColorSpaceExtendedLinearSRGB;
-    CGColorSpaceRef colorspace = CGColorSpaceCreateWithName(name);
-    [layer setColorspace:colorspace];
-    CGColorSpaceRelease(colorspace);
-  }
+    if (want_hdr)
+    {
+      [layer setWantsExtendedDynamicRangeContent:YES];
+      [layer setPixelFormat:MTLPixelFormatRGBA16Float];
+      const CFStringRef name = kCGColorSpaceExtendedLinearSRGB;
+      CGColorSpaceRef colorspace = CGColorSpaceCreateWithName(name);
+      [layer setColorspace:colorspace];
+      CGColorSpaceRelease(colorspace);
+    }
 
-  [view setWantsLayer:YES];
-  [view setLayer:layer];
+    auto device = MTLCreateSystemDefaultDevice();
+    [layer setDevice:device];
+    if (Util::ToAbstract([layer pixelFormat]) == AbstractTextureFormat::Undefined)
+      [layer setPixelFormat:MTLPixelFormatBGRA8Unorm];
+    const CGFloat scale = view.window ? view.window.backingScaleFactor : 1.0;
+    [layer setContentsScale:scale];
+    const NSSize bounds = view.bounds.size;
+    [layer setDrawableSize:NSMakeSize(bounds.width * scale, bounds.height * scale)];
 
-  wsi.render_surface = layer;
+    if (created_layer)
+    {
+      [view setWantsLayer:YES];
+      [view setLayer:layer];
+      [layer setFrame:view.bounds];
+      [layer setBounds:view.bounds];
+    }
+
+    result_layer = layer;
+  };
+  if ([NSThread isMainThread])
+    attach();
+  else
+    dispatch_sync(dispatch_get_main_queue(), attach);
+
+  wsi.render_surface = result_layer;
 #endif
 }
