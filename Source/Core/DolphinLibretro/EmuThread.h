@@ -1,45 +1,65 @@
-// SP1: Skeleton EmuThread coordinator.
+// SP2 T3: Real EmuThread coordinator.
 //
-// Owns the pause flag and per-frame signaling primitive that retro_run
-// will use to gate Dolphin's CPU/Fifo threads. SP1 keeps it minimal — no
-// BootManager integration yet — so the build can prove it links. SP2
-// adds the real Start()/Stop() wiring around BootManager::BootCore.
+// Wraps BootManager::BootCore / Core::Stop and provides a per-frame gate
+// that retro_run can use to synchronise with Dolphin's video output.
 
 #pragma once
 
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <string>
+
+#include "Common/HookableEvent.h"
+#include "Common/WindowSystemInfo.h"
+
+namespace Core
+{
+class System;
+}
 
 namespace DolphinLibretro {
 
 class EmuThread
 {
 public:
-    EmuThread();
-    ~EmuThread();
+  EmuThread();
+  ~EmuThread();
 
-    EmuThread(const EmuThread&) = delete;
-    EmuThread& operator=(const EmuThread&) = delete;
+  EmuThread(const EmuThread&) = delete;
+  EmuThread& operator=(const EmuThread&) = delete;
 
-    // SP1: stub. SP2 spins up BootManager::BootCore + Dolphin's CPU/Fifo threads.
-    void Start();
+  // Boot a game. Returns false if already running or BootManager::BootCore fails.
+  bool StartGame(const std::string& rom_path, const WindowSystemInfo& wsi);
 
-    // SP1: stub. SP2 calls Core::Stop + BootManager::Stop.
-    void Stop();
+  // Stop the running game. Safe to call when already stopped (idempotent).
+  void StopGame();
 
-    // SP1: stub. SP2 signals the CPU thread to advance one frame and waits
-    // for the video output before returning.
-    void RunFrame();
+  // Block until Dolphin fires its after_frame_event, or ~33 ms elapses
+  // (one NTSC field period as a safety timeout).
+  void WaitForFrame();
 
-    void SetPaused(bool paused);
-    bool IsPaused() const { return m_paused.load(); }
+  // Map to Core::SetState Paused / Running.
+  void SetPaused(bool paused);
+  bool IsPaused() const { return m_paused.load(); }
+
+  // True between a successful StartGame() and the completion of StopGame().
+  bool IsRunning() const { return m_running.load(); }
 
 private:
-    std::atomic<bool> m_paused{false};
-    std::mutex m_frame_mutex;
-    std::condition_variable m_frame_cv;
-    bool m_frame_ready{false};
+  // Registered as an after_frame_event listener while a game is running.
+  // Called on the GPU/FIFO thread — must only touch the mutex/cv.
+  void OnFrameEnd(Core::System& system);
+
+  std::atomic<bool> m_running{false};
+  std::atomic<bool> m_paused{false};
+
+  std::mutex m_frame_mutex;
+  std::condition_variable m_frame_cv;
+  bool m_frame_ready{false};
+
+  // RAII handle: keeps the after_frame_event listener alive while running.
+  Common::EventHook m_frame_hook;
 };
 
 }  // namespace DolphinLibretro
