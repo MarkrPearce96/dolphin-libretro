@@ -11,6 +11,7 @@ add_library(dolphin_libretro MODULE)
 
 target_sources(dolphin_libretro PRIVATE
     LibretroFrontend.cpp
+    LibretroEnvironment.cpp
     HostStubs.cpp
     EmuThread.cpp
 )
