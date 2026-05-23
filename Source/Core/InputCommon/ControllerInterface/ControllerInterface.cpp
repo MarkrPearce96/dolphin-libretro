@@ -181,6 +181,13 @@ void ControllerInterface::PlatformPopulateDevices(const std::function<void()>& c
     InvokeDevicesChangedCallbacks();
 }
 
+void ControllerInterface::AddBackend(std::unique_ptr<ciface::InputBackend> backend)
+{
+  // Caller is responsible for only calling this after Initialize() and before Shutdown().
+  std::lock_guard lk_population(m_devices_population_mutex);
+  m_input_backends.emplace_back(std::move(backend));
+}
+
 // Remove all devices and call library cleanup functions
 void ControllerInterface::Shutdown()
 {

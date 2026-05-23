@@ -14,6 +14,7 @@ target_sources(dolphin_libretro PRIVATE
     LibretroEnvironment.cpp
     LibretroMetalContext.mm
     LibretroAudioStream.cpp
+    LibretroInputSource.cpp
     HostStubs.cpp
     EmuThread.cpp
 )
