@@ -135,6 +135,13 @@ RETRO_API void retro_init(void)
 
     DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] UICommon::Init done");
 
+    // Bind the GameCube pads to our Libretro virtual devices.  Must run before
+    // retro_load_game's UICommon::InitControllers (which loads the pad config);
+    // Input::Install() then adds the devices and the resulting RefreshDevices
+    // re-resolves the bindings.  Without this the pad falls back to keyboard keys.
+    DolphinLibretro::Input::WriteDefaultGCPadProfile();
+    DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] wrote default GCPad profile");
+
     s_emu_thread = std::make_unique<DolphinLibretro::EmuThread>();
 }
 

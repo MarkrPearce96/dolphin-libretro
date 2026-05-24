@@ -24,4 +24,10 @@ void Uninstall();
 // expose; called once per retro_run before Dolphin reads control state.
 void PollFromFrontend();
 
+// (Re)write GCPadNew.ini so every GameCube pad reads from its matching
+// Libretro/0/N virtual device.  Must run before UICommon::InitControllers
+// (which loads the pad config).  Without it, Dolphin's GCPad::LoadDefaults
+// binds the pad to keyboard keys and a real gamepad does nothing.
+void WriteDefaultGCPadProfile();
+
 }  // namespace DolphinLibretro::Input

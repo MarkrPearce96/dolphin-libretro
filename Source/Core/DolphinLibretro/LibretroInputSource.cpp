@@ -9,6 +9,8 @@
 #include <memory>
 #include <string>
 
+#include "Common/FileUtil.h"
+#include "Common/IniFile.h"
 #include "InputCommon/ControllerInterface/ControllerInterface.h"
 #include "InputCommon/ControllerInterface/CoreDevice.h"
 
@@ -268,6 +270,77 @@ void PollFromFrontend()
             s_analog_state[port][i].store(val, std::memory_order_relaxed);
         }
     }
+}
+
+void WriteDefaultGCPadProfile()
+{
+    // The libretro architecture fixes the GameCube-pad <-> RetroPad binding:
+    // RetroNest (the host) owns user remapping on the physical-input <-> RetroPad
+    // -slot side, and the core's GC pad always reads the RetroPad inputs exposed
+    // by our Libretro/0/N virtual device.  So we (re)write this profile every boot
+    // rather than seeding a one-time default — it isn't user-editable here, and the
+    // /tmp user dir is recreated each session anyway.
+    //
+    // GC <-> RetroPad convention (must match RetroNest's DolphinLibretroAdapter
+    // BindingDefs): A<->B, B<->A, X<->Y, Y<->X; Z<->R3; Start<->Start; D-Pad 1:1;
+    // Main Stick <-> left analog, C-Stick <-> right analog; L(digital)<->L,
+    // L-Analog<->L2, R(digital)<->R, R-Analog<->R2.  RetroPad analog polarity:
+    // up = -Y, down = +Y, left = -X, right = +X.
+    const std::string config_dir = File::GetUserPath(D_CONFIG_IDX);
+    File::CreateFullPath(config_dir);
+    const std::string ini_path = config_dir + "GCPadNew.ini";
+
+    Common::IniFile ini;
+    ini.Load(ini_path);  // keep any pre-existing unrelated sections
+
+    for (int port = 0; port < LIBRETRO_NUM_PORTS; ++port)
+    {
+        const std::string device = "Libretro/0/" + std::to_string(port);
+        auto* s = ini.GetOrCreateSection("GCPad" + std::to_string(port + 1));
+
+        // Section::Set has a templated overload that, given a string *literal*,
+        // decays the const char* to bool and writes "True".  Route every value
+        // through this lambda so the std::string arg selects the string overload.
+        const auto set = [s](const char* key, const std::string& expr) { s->Set(key, expr); };
+
+        set("Device", device);
+
+        // No face swap: RetroNest seeds RetroPad slot A=south, B=east, X=west,
+        // Y=north (controls.ini), so GC button <- same-letter RetroPad input puts
+        // south(cross)->GC A, etc.  GC Z uses RetroPad Select because that is the
+        // only spare slot RetroNest seeds a default physical binding for (Back).
+        set("Buttons/A", "`A`");
+        set("Buttons/B", "`B`");
+        set("Buttons/X", "`X`");
+        set("Buttons/Y", "`Y`");
+        set("Buttons/Z", "`Select`");
+        set("Buttons/Start", "`Start`");
+
+        set("Main Stick/Up", "`LY-`");
+        set("Main Stick/Down", "`LY+`");
+        set("Main Stick/Left", "`LX-`");
+        set("Main Stick/Right", "`LX+`");
+
+        set("C-Stick/Up", "`RY-`");
+        set("C-Stick/Down", "`RY+`");
+        set("C-Stick/Left", "`RX-`");
+        set("C-Stick/Right", "`RX+`");
+
+        // L/R analog reuse the digital shoulder inputs (full press when held);
+        // the virtual device exposes L2/R2 only as digital, and RetroNest does
+        // not seed default bindings for them.
+        set("Triggers/L", "`L`");
+        set("Triggers/R", "`R`");
+        set("Triggers/L-Analog", "`L`");
+        set("Triggers/R-Analog", "`R`");
+
+        set("D-Pad/Up", "`Up`");
+        set("D-Pad/Down", "`Down`");
+        set("D-Pad/Left", "`Left`");
+        set("D-Pad/Right", "`Right`");
+    }
+
+    ini.Save(ini_path);
 }
 
 }  // namespace DolphinLibretro::Input
