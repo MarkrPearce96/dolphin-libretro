@@ -30,4 +30,10 @@ void PollFromFrontend();
 // binds the pad to keyboard keys and a real gamepad does nothing.
 void WriteDefaultGCPadProfile();
 
+// (Re)write WiimoteNew.ini so every Wiimote is emulated with a Classic
+// Controller extension bound to its Libretro/0/N device.  Same timing +
+// rationale as WriteDefaultGCPadProfile.  Classic-only: the virtual device
+// has no IR/motion, so the bare Wii Remote pointer/tilt is left unbound.
+void WriteDefaultWiimoteProfile();
+
 }  // namespace DolphinLibretro::Input

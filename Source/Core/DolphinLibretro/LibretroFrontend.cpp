@@ -140,7 +140,8 @@ RETRO_API void retro_init(void)
     // Input::Install() then adds the devices and the resulting RefreshDevices
     // re-resolves the bindings.  Without this the pad falls back to keyboard keys.
     DolphinLibretro::Input::WriteDefaultGCPadProfile();
-    DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] wrote default GCPad profile");
+    DolphinLibretro::Input::WriteDefaultWiimoteProfile();
+    DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] wrote default GCPad + Wiimote profiles");
 
     s_emu_thread = std::make_unique<DolphinLibretro::EmuThread>();
 }

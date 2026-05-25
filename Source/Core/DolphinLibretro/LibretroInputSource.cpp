@@ -343,4 +343,63 @@ void WriteDefaultGCPadProfile()
     ini.Save(ini_path);
 }
 
+void WriteDefaultWiimoteProfile()
+{
+    // Emulated Wiimote + Classic Controller extension bound to Libretro/0/N,
+    // mirroring WriteDefaultGCPadProfile.  RetroPad slot <-> Classic control
+    // (must match RetroNest's feed + wiiClassicBindings): ZL<-L2, ZR<-Select,
+    // -<-R2, +<-Start, Home<-R3; L/R analog<-L/R; sticks<-LX/LY,RX/RY; faces +
+    // D-Pad straight through.  Only the Classic extension is bound — the virtual
+    // device exposes no IR pointer or accelerometer for the bare Wii Remote.
+    const std::string config_dir = File::GetUserPath(D_CONFIG_IDX);
+    File::CreateFullPath(config_dir);
+    const std::string ini_path = config_dir + "WiimoteNew.ini";
+
+    Common::IniFile ini;
+    ini.Load(ini_path);
+
+    for (int port = 0; port < LIBRETRO_NUM_PORTS; ++port)
+    {
+        const std::string device = "Libretro/0/" + std::to_string(port);
+        auto* s = ini.GetOrCreateSection("Wiimote" + std::to_string(port + 1));
+        const auto set = [s](const char* key, const std::string& expr) { s->Set(key, expr); };
+
+        set("Source", "1");  // 1 = Emulated
+        set("Device", device);
+        set("Extension", "Classic");
+
+        set("Classic/Buttons/A", "`A`");
+        set("Classic/Buttons/B", "`B`");
+        set("Classic/Buttons/X", "`X`");
+        set("Classic/Buttons/Y", "`Y`");
+        set("Classic/Buttons/ZL", "`L2`");
+        set("Classic/Buttons/ZR", "`Select`");
+        set("Classic/Buttons/-", "`R2`");
+        set("Classic/Buttons/+", "`Start`");
+        set("Classic/Buttons/Home", "`R3`");
+
+        set("Classic/D-Pad/Up", "`Up`");
+        set("Classic/D-Pad/Down", "`Down`");
+        set("Classic/D-Pad/Left", "`Left`");
+        set("Classic/D-Pad/Right", "`Right`");
+
+        set("Classic/Left Stick/Up", "`LY-`");
+        set("Classic/Left Stick/Down", "`LY+`");
+        set("Classic/Left Stick/Left", "`LX-`");
+        set("Classic/Left Stick/Right", "`LX+`");
+
+        set("Classic/Right Stick/Up", "`RY-`");
+        set("Classic/Right Stick/Down", "`RY+`");
+        set("Classic/Right Stick/Left", "`RX-`");
+        set("Classic/Right Stick/Right", "`RX+`");
+
+        set("Classic/Triggers/L", "`L`");
+        set("Classic/Triggers/R", "`R`");
+        set("Classic/Triggers/L-Analog", "`L`");
+        set("Classic/Triggers/R-Analog", "`R`");
+    }
+
+    ini.Save(ini_path);
+}
+
 }  // namespace DolphinLibretro::Input
