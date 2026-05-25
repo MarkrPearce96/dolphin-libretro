@@ -157,4 +157,22 @@ void Parse(retro_environment_t cb, Values& out)
     if (const char* v = query("dolphin_volume"))          out.volume = parse_int(v, 100);
 }
 
+#ifndef CORE_OPTIONS_TEST_ONLY
+void Apply(const Values& v)
+{
+    // DSP engine fan-out (1:1 here; the string split happened in Parse).
+    Config::SetCurrent(Config::MAIN_DSP_HLE, v.dsp_hle);
+    Config::SetCurrent(Config::MAIN_DSP_JIT, v.dsp_jit);
+    Config::SetCurrent(Config::MAIN_AUDIO_LATENCY, v.latency);
+    Config::SetCurrent(Config::MAIN_DPL2_DECODER, v.dpl2_decoder);
+    Config::SetCurrent(Config::MAIN_DPL2_QUALITY,
+                       static_cast<AudioCommon::DPL2Quality>(v.dpl2_quality));
+    Config::SetCurrent(Config::MAIN_AUDIO_BUFFER_SIZE, v.buffer_size);
+    Config::SetCurrent(Config::MAIN_AUDIO_FILL_GAPS, v.fill_gaps);
+    Config::SetCurrent(Config::MAIN_AUDIO_PRESERVE_PITCH, v.preserve_pitch);
+    Config::SetCurrent(Config::MAIN_AUDIO_MUTE_ON_DISABLED_SPEED_LIMIT, v.mute_on_unthrottle);
+    Config::SetCurrent(Config::MAIN_AUDIO_VOLUME, v.volume);
+}
+#endif
+
 } // namespace DolphinLibretro::CoreOptions::Audio
