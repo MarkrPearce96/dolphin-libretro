@@ -11,6 +11,7 @@
 #include "DolphinLibretro/libretro.h"
 #include "DolphinLibretro/EmuThread.h"
 #include "DolphinLibretro/LibretroEnvironment.h"
+#include "CoreOptions.h"
 #include "DolphinLibretro/LibretroMetalContext.h"
 #include "DolphinLibretro/LibretroAudioStream.h"
 #include "DolphinLibretro/LibretroInputSource.h"
@@ -78,6 +79,10 @@ RETRO_API void retro_set_environment(retro_environment_t cb)
 {
     DolphinLibretro::Frontend::g_environ_cb = cb;
     DolphinLibretro::Environment::SetEnvironmentCallback(cb);
+
+    // SP6: declare core options as soon as the env_cb is available — the
+    // only legal time per the libretro spec (before retro_init).
+    DolphinLibretro::CoreOptions::EmitCoreOptionsV2(cb);
 
     // Fetch the frontend log callback if exposed.
     retro_log_callback log_cb{};
@@ -204,6 +209,15 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game)
     // 2. Force Metal as the GFX backend. Without this, Dolphin's default may
     //    be OGL or Software; the WSI we built has MacOS NSView ready for Metal.
     Config::SetCurrent(Config::MAIN_GFX_BACKEND, std::string("Metal"));
+
+    // SP6: read user-tweaked Graphics options and write them into Dolphin's
+    // CurrentRun config layer. UICommon::Init (in retro_init) already loaded
+    // the Base layer from disk; CurrentRun has higher read priority and is
+    // NOT reloaded by BootCore, so these win and are read by the video
+    // backend at boot. Read once — options take effect on next launch only.
+    const auto resolved = DolphinLibretro::CoreOptions::ReadResolved(
+        DolphinLibretro::Environment::GetEnvironmentCallback());
+    DolphinLibretro::CoreOptions::Graphics::Apply(resolved.graphics);
 
     // 3. Init Dolphin's controllers (needs the WSI for SDL video subsystem etc.).
     //    Mirrors DolphinNoGUI/MainNoGUI.cpp:273. Must come BEFORE BootCore.
