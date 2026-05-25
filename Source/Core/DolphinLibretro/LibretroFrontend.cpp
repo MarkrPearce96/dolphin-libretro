@@ -218,6 +218,8 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game)
     const auto resolved = DolphinLibretro::CoreOptions::ReadResolved(
         DolphinLibretro::Environment::GetEnvironmentCallback());
     DolphinLibretro::CoreOptions::Graphics::Apply(resolved.graphics);
+    DolphinLibretro::CoreOptions::Audio::Apply(resolved.audio);
+    DolphinLibretro::CoreOptions::Core::Apply(resolved.core);
 
     // 3. Init Dolphin's controllers (needs the WSI for SDL video subsystem etc.).
     //    Mirrors DolphinNoGUI/MainNoGUI.cpp:273. Must come BEFORE BootCore.
