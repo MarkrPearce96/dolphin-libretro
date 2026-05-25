@@ -8,11 +8,12 @@
 //   cd Source/Core/DolphinLibretro/tools
 //   clang++ -std=c++20 -I.. -I../../.. -DCORE_OPTIONS_TEST_ONLY \
 //       test_core_options.cpp ../CoreOptions.cpp ../CoreOptionsGraphics.cpp \
-//       ../CoreOptionsAudio.cpp -o test_core_options && ./test_core_options
+//       ../CoreOptionsAudio.cpp ../CoreOptionsCore.cpp -o test_core_options && ./test_core_options
 
 #include "../CoreOptions.h"
 #include "../CoreOptionsGraphics.h"
 #include "../CoreOptionsAudio.h"
+#include "../CoreOptionsCore.h"
 
 #include <cstdio>
 #include <cstring>
@@ -148,6 +149,26 @@ int main() {
     Audio::Parse(&fake_cb, au3);
     ck_bool("DSP HLE hle", au3.dsp_hle, true);
     ck_bool("DSP HLE jit", au3.dsp_jit, true);
+
+    // ── Core/system Parse: enums, multipliers, u64 ──
+    fake::reset();
+    fake::vars["dolphin_cpu_core"]       = "Cached Interpreter";
+    fake::vars["dolphin_fallback_region"] = "2";
+    fake::vars["dolphin_slot_a"]         = "1";
+    fake::vars["dolphin_wii_sd_card_size"] = "134217728";
+    fake::vars["dolphin_overclock"]      = "3";
+    fake::vars["dolphin_cpu_thread"]     = "enabled";
+    Core::Values c{};
+    Core::Parse(&fake_cb, c);
+    ck_str ("CPU core cached",     c.advanced.cpu_core, "Cached Interpreter");
+    ck_int ("Fallback region PAL", c.general.fallback_region, 2);
+    ck_int ("Slot A memcard",      c.gamecube.slot_a, 1);
+    ck_int ("Overclock 3x",        c.advanced.overclock, 3);
+    ck_bool("Dual core enabled",   c.general.cpu_thread, true);
+    ck_bool("SkipIPL default",     c.gamecube.skip_ipl, true);
+    ck_bool("SD card default on",  c.wii.sd_card, true);
+    // u64 size compared via long is safe here (134217728 < 2^31).
+    ck_int ("SD size 128MiB",      static_cast<long>(c.wii.sd_card_size), 134217728);
 
     // ── Full schema size: 53 Graphics + 9 Audio = 62 options + 1 terminator = 63 ──
     ck_int("BuildDefinitions size (62 opts + terminator)",

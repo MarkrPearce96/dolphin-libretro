@@ -298,4 +298,61 @@ void AppendDefinitions(std::vector<retro_core_option_v2_definition>& out)
     });
 }
 
+void Parse(retro_environment_t cb, Values& out)
+{
+    if (!cb) return;
+    auto query = [&cb](const char* key) -> const char* {
+        retro_variable var{};
+        var.key = key;
+        if (cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+            return var.value;
+        return nullptr;
+    };
+    auto parse_bool = [](const char* s) { return s && std::strcmp(s, "enabled") == 0; };
+    auto parse_int = [](const char* s, int fb) {
+        if (!s) return fb; char* e = nullptr; long n = std::strtol(s, &e, 10);
+        return e == s ? fb : static_cast<int>(n);
+    };
+
+    // ── General ──
+    if (const char* v = query("dolphin_cpu_thread"))            out.general.cpu_thread = parse_bool(v);
+    if (const char* v = query("dolphin_enable_cheats"))         out.general.enable_cheats = parse_bool(v);
+    if (const char* v = query("dolphin_load_game_into_memory")) out.general.load_into_memory = parse_bool(v);
+    if (const char* v = query("dolphin_override_region_settings")) out.general.override_region = parse_bool(v);
+    if (const char* v = query("dolphin_emulation_speed"))       out.general.emulation_speed = v;
+    if (const char* v = query("dolphin_fallback_region"))       out.general.fallback_region = parse_int(v, 1);
+
+    // ── Advanced ──
+    if (const char* v = query("dolphin_cpu_core"))                 out.advanced.cpu_core = v;
+    if (const char* v = query("dolphin_mmu"))                      out.advanced.mmu = parse_bool(v);
+    if (const char* v = query("dolphin_pause_on_panic"))           out.advanced.pause_on_panic = parse_bool(v);
+    if (const char* v = query("dolphin_accurate_cpu_cache"))       out.advanced.accurate_cpu_cache = parse_bool(v);
+    if (const char* v = query("dolphin_correct_time_drift"))       out.advanced.correct_time_drift = parse_bool(v);
+    if (const char* v = query("dolphin_rush_frame_presentation"))  out.advanced.rush_frame_presentation = parse_bool(v);
+    if (const char* v = query("dolphin_smooth_early_presentation")) out.advanced.smooth_early_presentation = parse_bool(v);
+    if (const char* v = query("dolphin_overclock_enable"))         out.advanced.overclock_enable = parse_bool(v);
+    if (const char* v = query("dolphin_overclock"))                out.advanced.overclock = parse_int(v, 1);
+    if (const char* v = query("dolphin_vi_overclock_enable"))      out.advanced.vi_overclock_enable = parse_bool(v);
+    if (const char* v = query("dolphin_vi_overclock"))             out.advanced.vi_overclock = parse_int(v, 1);
+
+    // ── GameCube ──
+    if (const char* v = query("dolphin_skip_ipl"))        out.gamecube.skip_ipl = parse_bool(v);
+    if (const char* v = query("dolphin_gc_language"))     out.gamecube.language = parse_int(v, 0);
+    if (const char* v = query("dolphin_slot_a"))          out.gamecube.slot_a = parse_int(v, 8);
+    if (const char* v = query("dolphin_slot_b"))          out.gamecube.slot_b = parse_int(v, 255);
+    if (const char* v = query("dolphin_serial_port_1"))   out.gamecube.serial_port_1 = parse_int(v, 255);
+
+    // ── Wii ──
+    if (const char* v = query("dolphin_wii_keyboard"))           out.wii.keyboard = parse_bool(v);
+    if (const char* v = query("dolphin_enable_wiilink"))         out.wii.wiilink = parse_bool(v);
+    if (const char* v = query("dolphin_wii_sd_card"))            out.wii.sd_card = parse_bool(v);
+    if (const char* v = query("dolphin_wii_sd_card_writes"))     out.wii.sd_card_writes = parse_bool(v);
+    if (const char* v = query("dolphin_wii_sd_card_folder_sync")) out.wii.sd_card_folder_sync = parse_bool(v);
+    if (const char* v = query("dolphin_wii_sd_card_size")) {
+        char* e = nullptr;
+        unsigned long long n = std::strtoull(v, &e, 10);
+        if (e != v) out.wii.sd_card_size = n;
+    }
+}
+
 } // namespace DolphinLibretro::CoreOptions::Core
