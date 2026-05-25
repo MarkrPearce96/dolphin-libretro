@@ -148,9 +148,9 @@ int main() {
     Audio::Parse(&fake_cb, au3);
     ck_bool("DSP HLE hle", au3.dsp_hle, true);
 
-    // ── Full schema size: 53 options + 1 terminator = 54 ──
-    ck_int("BuildDefinitions size (53 opts + terminator)",
-           static_cast<long>(BuildDefinitions().size()), 54);
+    // ── Full schema size: 53 Graphics + 9 Audio = 62 options + 1 terminator = 63 ──
+    ck_int("BuildDefinitions size (62 opts + terminator)",
+           static_cast<long>(BuildDefinitions().size()), 63);
 
     std::printf("\n%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;

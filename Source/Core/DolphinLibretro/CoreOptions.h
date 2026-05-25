@@ -9,6 +9,7 @@
 
 #include "libretro.h"
 #include "CoreOptionsGraphics.h"
+#include "CoreOptionsAudio.h"
 #include <vector>
 
 namespace DolphinLibretro::CoreOptions
@@ -17,6 +18,7 @@ namespace DolphinLibretro::CoreOptions
 struct Resolved
 {
     Graphics::Values graphics{};
+    Audio::Values    audio{};
 };
 
 // Build (or return the cached) master option-definitions vector. First

@@ -25,6 +25,7 @@ const std::vector<retro_core_option_v2_definition>& BuildDefinitions()
         std::vector<retro_core_option_v2_definition> v;
         v.reserve(64);  // ~50 Graphics + terminator + headroom for SP7
         Graphics::AppendDefinitions(v);
+        Audio::AppendDefinitions(v);
         // libretro terminator — must be the final entry. Only the first
         // values[] element is named; the rest of the array is zero-init'd
         // by aggregate rules, which is the required all-null terminator.
@@ -59,6 +60,7 @@ Resolved ReadResolved(retro_environment_t cb)
     Resolved r{};
     if (!cb) return r;
     Graphics::Parse(cb, r.graphics);
+    Audio::Parse(cb, r.audio);
 
     // Diagnostic: log the resolved Graphics values applied this boot, so a
     // user can confirm their settings actually reached the core. Routed via
@@ -80,6 +82,14 @@ Resolved ReadResolved(retro_environment_t cb)
         g.advanced.backend_multithreading ? 1 : 0, g.advanced.load_custom_textures ? 1 : 0,
         g.advanced.manual_texture_sampling ? 1 : 0,
         g.osd.show_messages ? 1 : 0, g.osd.show_fps ? 1 : 0, g.osd.show_speed ? 1 : 0);
+
+    const auto& a = r.audio;
+    CORE_OPTIONS_LOG(RETRO_LOG_INFO,
+        "[CoreOptions] resolved audio: dsp(hle=%d,jit=%d) latency=%d dpl2(dec=%d,q=%d) "
+        "buffer=%d fill_gaps=%d preserve_pitch=%d mute_unthrottle=%d volume=%d",
+        a.dsp_hle ? 1 : 0, a.dsp_jit ? 1 : 0, a.latency, a.dpl2_decoder ? 1 : 0,
+        a.dpl2_quality, a.buffer_size, a.fill_gaps ? 1 : 0, a.preserve_pitch ? 1 : 0,
+        a.mute_on_unthrottle ? 1 : 0, a.volume);
 
     return r;
 }
