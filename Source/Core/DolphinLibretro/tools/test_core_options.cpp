@@ -158,6 +158,7 @@ int main() {
     fake::vars["dolphin_wii_sd_card_size"] = "134217728";
     fake::vars["dolphin_overclock"]      = "3";
     fake::vars["dolphin_cpu_thread"]     = "enabled";
+    fake::vars["dolphin_emulation_speed"] = "0.500000";
     Core::Values c{};
     Core::Parse(&fake_cb, c);
     ck_str ("CPU core cached",     c.advanced.cpu_core, "Cached Interpreter");
@@ -169,6 +170,13 @@ int main() {
     ck_bool("SD card default on",  c.wii.sd_card, true);
     // u64 size compared via long is safe here (134217728 < 2^31).
     ck_int ("SD size 128MiB",      static_cast<long>(c.wii.sd_card_size), 134217728);
+    ck_str ("Emulation speed stored", c.general.emulation_speed, "0.500000");
+
+    fake::reset();
+    fake::vars["dolphin_wii_sd_card_size"] = "34359738368";  // 32 GiB, > INT32_MAX
+    Core::Values c32{};
+    Core::Parse(&fake_cb, c32);
+    ck_int ("SD size 32GiB (u64)", static_cast<long>(c32.wii.sd_card_size), 34359738368L);
 
     // ── Full schema size: 53 Graphics + 9 Audio + 28 Core = 90 options + terminator = 91 ──
     ck_int("BuildDefinitions size (90 opts + terminator)",

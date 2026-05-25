@@ -365,8 +365,13 @@ void Apply(const Values& v)
     Config::SetCurrent(Config::MAIN_ENABLE_CHEATS, v.general.enable_cheats);
     Config::SetCurrent(Config::MAIN_LOAD_GAME_INTO_MEMORY, v.general.load_into_memory);
     Config::SetCurrent(Config::MAIN_OVERRIDE_REGION_SETTINGS, v.general.override_region);
-    Config::SetCurrent(Config::MAIN_EMULATION_SPEED,
-                       static_cast<float>(std::strtod(v.general.emulation_speed.c_str(), nullptr)));
+    {
+        const char* speed_str = v.general.emulation_speed.c_str();
+        char* end = nullptr;
+        const double speed = std::strtod(speed_str, &end);
+        Config::SetCurrent(Config::MAIN_EMULATION_SPEED,
+                           static_cast<float>(end == speed_str ? 1.0 : speed));
+    }
     Config::SetCurrent(Config::MAIN_FALLBACK_REGION,
                        static_cast<DiscIO::Region>(v.general.fallback_region));
 

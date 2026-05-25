@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Mark Pearce (RetroNest)
 // SPDX-License-Identifier: GPL-3.0+
 //
-// SP6: libretro core-options aggregator for dolphin-libretro. Mirrors
-// pcsx2-libretro/CoreOptions.{h,cpp}. Graphics is the only category in
-// SP6; SP7 appends Audio + Core/Advanced modules here with no refactor.
+// libretro core-options aggregator for dolphin-libretro. Mirrors
+// pcsx2-libretro/CoreOptions.{h,cpp}. SP6 added Graphics; SP7 added the
+// Audio and Core/system (General/Advanced/GameCube/Wii) modules.
 
 #pragma once
 

@@ -23,7 +23,7 @@ const std::vector<retro_core_option_v2_definition>& BuildDefinitions()
 {
     static const std::vector<retro_core_option_v2_definition> kAll = [] {
         std::vector<retro_core_option_v2_definition> v;
-        v.reserve(96);  // 53 Graphics + 9 Audio + 28 Core + terminator
+        v.reserve(91);  // 53 Graphics + 9 Audio + 28 Core + 1 terminator
         Graphics::AppendDefinitions(v);
         Audio::AppendDefinitions(v);
         Core::AppendDefinitions(v);
