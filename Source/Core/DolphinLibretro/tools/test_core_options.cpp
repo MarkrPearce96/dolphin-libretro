@@ -170,9 +170,9 @@ int main() {
     // u64 size compared via long is safe here (134217728 < 2^31).
     ck_int ("SD size 128MiB",      static_cast<long>(c.wii.sd_card_size), 134217728);
 
-    // ── Full schema size: 53 Graphics + 9 Audio = 62 options + 1 terminator = 63 ──
-    ck_int("BuildDefinitions size (62 opts + terminator)",
-           static_cast<long>(BuildDefinitions().size()), 63);
+    // ── Full schema size: 53 Graphics + 9 Audio + 28 Core = 90 options + terminator = 91 ──
+    ck_int("BuildDefinitions size (90 opts + terminator)",
+           static_cast<long>(BuildDefinitions().size()), 91);
 
     std::printf("\n%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;

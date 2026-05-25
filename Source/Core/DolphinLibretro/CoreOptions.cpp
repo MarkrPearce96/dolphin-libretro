@@ -23,9 +23,10 @@ const std::vector<retro_core_option_v2_definition>& BuildDefinitions()
 {
     static const std::vector<retro_core_option_v2_definition> kAll = [] {
         std::vector<retro_core_option_v2_definition> v;
-        v.reserve(96);  // 53 Graphics + 9 Audio (+ Core in a later unit) + terminator
+        v.reserve(96);  // 53 Graphics + 9 Audio + 28 Core + terminator
         Graphics::AppendDefinitions(v);
         Audio::AppendDefinitions(v);
+        Core::AppendDefinitions(v);
         // libretro terminator — must be the final entry. Only the first
         // values[] element is named; the rest of the array is zero-init'd
         // by aggregate rules, which is the required all-null terminator.
@@ -61,6 +62,7 @@ Resolved ReadResolved(retro_environment_t cb)
     if (!cb) return r;
     Graphics::Parse(cb, r.graphics);
     Audio::Parse(cb, r.audio);
+    Core::Parse(cb, r.core);
 
     // Diagnostic: log the resolved Graphics values applied this boot, so a
     // user can confirm their settings actually reached the core. Routed via
@@ -90,6 +92,21 @@ Resolved ReadResolved(retro_environment_t cb)
         a.dsp_hle ? 1 : 0, a.dsp_jit ? 1 : 0, a.latency, a.dpl2_decoder ? 1 : 0,
         a.dpl2_quality, a.buffer_size, a.fill_gaps ? 1 : 0, a.preserve_pitch ? 1 : 0,
         a.mute_on_unthrottle ? 1 : 0, a.volume);
+
+    const auto& c = r.core;
+    CORE_OPTIONS_LOG(RETRO_LOG_INFO,
+        "[CoreOptions] resolved core: dual_core=%d cpu_core=%s mmu=%d region=%d speed=%s | "
+        "overclock(en=%d,%dx) vi_oc(en=%d,%dx) | gc: skip_ipl=%d lang=%d slotA=%d slotB=%d sp1=%d | "
+        "wii: kbd=%d wiilink=%d sd(on=%d,wr=%d,sync=%d,size=%llu)",
+        c.general.cpu_thread ? 1 : 0, c.advanced.cpu_core.c_str(), c.advanced.mmu ? 1 : 0,
+        c.general.fallback_region, c.general.emulation_speed.c_str(),
+        c.advanced.overclock_enable ? 1 : 0, c.advanced.overclock,
+        c.advanced.vi_overclock_enable ? 1 : 0, c.advanced.vi_overclock,
+        c.gamecube.skip_ipl ? 1 : 0, c.gamecube.language, c.gamecube.slot_a,
+        c.gamecube.slot_b, c.gamecube.serial_port_1,
+        c.wii.keyboard ? 1 : 0, c.wii.wiilink ? 1 : 0, c.wii.sd_card ? 1 : 0,
+        c.wii.sd_card_writes ? 1 : 0, c.wii.sd_card_folder_sync ? 1 : 0,
+        static_cast<unsigned long long>(c.wii.sd_card_size));
 
     return r;
 }
