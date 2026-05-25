@@ -12,6 +12,7 @@
 
 #include "../CoreOptions.h"
 #include "../CoreOptionsGraphics.h"
+#include "../CoreOptionsAudio.h"
 
 #include <cstdio>
 #include <cstring>
@@ -122,6 +123,30 @@ int main() {
     ck_bool("show_fps set",        o.osd.show_fps, true);
     ck_int ("perf_samp_window",    o.osd.perf_samp_window, 5000);
     ck_bool("show_speed_colors def", o.osd.show_speed_colors, true);
+
+    // ── Audio: DSP-engine fan-out + a slider + default ──
+    fake::reset();
+    fake::vars["dolphin_dsp_engine"] = "LLE Recompiler";
+    fake::vars["dolphin_volume"]     = "70";
+    Audio::Values au{};
+    Audio::Parse(&fake_cb, au);
+    ck_bool("DSP LLE-Recompiler hle", au.dsp_hle, false);
+    ck_bool("DSP LLE-Recompiler jit", au.dsp_jit, true);
+    ck_int ("Audio volume 70",        au.volume, 70);
+    ck_int ("Audio latency default",  au.latency, 20);
+
+    fake::reset();
+    fake::vars["dolphin_dsp_engine"] = "LLE Interpreter";
+    Audio::Values au2{};
+    Audio::Parse(&fake_cb, au2);
+    ck_bool("DSP LLE-Interp hle", au2.dsp_hle, false);
+    ck_bool("DSP LLE-Interp jit", au2.dsp_jit, false);
+
+    fake::reset();
+    fake::vars["dolphin_dsp_engine"] = "HLE";
+    Audio::Values au3{};
+    Audio::Parse(&fake_cb, au3);
+    ck_bool("DSP HLE hle", au3.dsp_hle, true);
 
     // ── Full schema size: 53 options + 1 terminator = 54 ──
     ck_int("BuildDefinitions size (53 opts + terminator)",

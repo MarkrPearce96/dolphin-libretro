@@ -125,4 +125,36 @@ void AppendDefinitions(std::vector<retro_core_option_v2_definition>& out)
     });
 }
 
+void Parse(retro_environment_t cb, Values& out)
+{
+    if (!cb) return;
+    auto query = [&cb](const char* key) -> const char* {
+        retro_variable var{};
+        var.key = key;
+        if (cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+            return var.value;
+        return nullptr;
+    };
+    auto parse_bool = [](const char* s) { return s && std::strcmp(s, "enabled") == 0; };
+    auto parse_int = [](const char* s, int fb) {
+        if (!s) return fb; char* e = nullptr; long n = std::strtol(s, &e, 10);
+        return e == s ? fb : static_cast<int>(n);
+    };
+
+    // DSP engine fan-out: one combo -> dsp_hle + dsp_jit.
+    if (const char* v = query("dolphin_dsp_engine")) {
+        if (std::strcmp(v, "HLE") == 0)              { out.dsp_hle = true;  out.dsp_jit = true; }
+        else if (std::strcmp(v, "LLE Recompiler") == 0) { out.dsp_hle = false; out.dsp_jit = true; }
+        else                                          { out.dsp_hle = false; out.dsp_jit = false; } // LLE Interpreter
+    }
+    if (const char* v = query("dolphin_audio_latency"))   out.latency = parse_int(v, 20);
+    if (const char* v = query("dolphin_dpl2_decoder"))    out.dpl2_decoder = parse_bool(v);
+    if (const char* v = query("dolphin_dpl2_quality"))    out.dpl2_quality = parse_int(v, 2);
+    if (const char* v = query("dolphin_audio_buffer_size")) out.buffer_size = parse_int(v, 80);
+    if (const char* v = query("dolphin_audio_fill_gaps")) out.fill_gaps = parse_bool(v);
+    if (const char* v = query("dolphin_audio_preserve_pitch")) out.preserve_pitch = parse_bool(v);
+    if (const char* v = query("dolphin_audio_mute_on_unthrottle")) out.mute_on_unthrottle = parse_bool(v);
+    if (const char* v = query("dolphin_volume"))          out.volume = parse_int(v, 100);
+}
+
 } // namespace DolphinLibretro::CoreOptions::Audio
