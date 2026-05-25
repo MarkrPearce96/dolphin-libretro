@@ -161,6 +161,8 @@ void Parse(retro_environment_t cb, Values& out)
 void Apply(const Values& v)
 {
     // DSP engine fan-out (1:1 here; the string split happened in Parse).
+    // MAIN_DSP_JIT is written unconditionally — Dolphin's engine ignores it
+    // when MAIN_DSP_HLE is true, so there's no need to gate the write.
     Config::SetCurrent(Config::MAIN_DSP_HLE, v.dsp_hle);
     Config::SetCurrent(Config::MAIN_DSP_JIT, v.dsp_jit);
     Config::SetCurrent(Config::MAIN_AUDIO_LATENCY, v.latency);

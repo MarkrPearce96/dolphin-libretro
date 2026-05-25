@@ -23,7 +23,7 @@ const std::vector<retro_core_option_v2_definition>& BuildDefinitions()
 {
     static const std::vector<retro_core_option_v2_definition> kAll = [] {
         std::vector<retro_core_option_v2_definition> v;
-        v.reserve(64);  // ~50 Graphics + terminator + headroom for SP7
+        v.reserve(96);  // 53 Graphics + 9 Audio (+ Core in a later unit) + terminator
         Graphics::AppendDefinitions(v);
         Audio::AppendDefinitions(v);
         // libretro terminator — must be the final entry. Only the first

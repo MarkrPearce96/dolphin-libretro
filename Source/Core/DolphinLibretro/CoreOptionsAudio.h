@@ -9,7 +9,6 @@
 #pragma once
 
 #include "libretro.h"
-#include <string>
 #include <vector>
 
 namespace DolphinLibretro::CoreOptions::Audio

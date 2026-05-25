@@ -8,7 +8,7 @@
 //   cd Source/Core/DolphinLibretro/tools
 //   clang++ -std=c++20 -I.. -I../../.. -DCORE_OPTIONS_TEST_ONLY \
 //       test_core_options.cpp ../CoreOptions.cpp ../CoreOptionsGraphics.cpp \
-//       -o test_core_options && ./test_core_options
+//       ../CoreOptionsAudio.cpp -o test_core_options && ./test_core_options
 
 #include "../CoreOptions.h"
 #include "../CoreOptionsGraphics.h"
@@ -147,6 +147,7 @@ int main() {
     Audio::Values au3{};
     Audio::Parse(&fake_cb, au3);
     ck_bool("DSP HLE hle", au3.dsp_hle, true);
+    ck_bool("DSP HLE jit", au3.dsp_jit, true);
 
     // ── Full schema size: 53 Graphics + 9 Audio = 62 options + 1 terminator = 63 ──
     ck_int("BuildDefinitions size (62 opts + terminator)",
