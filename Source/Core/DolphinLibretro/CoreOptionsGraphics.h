@@ -42,7 +42,7 @@ struct Values
         bool widescreen_hack     = false;
         bool force_true_color    = true;
         bool disable_fog         = false;
-        bool arbitrary_mipmap_detection = true;
+        bool arbitrary_mipmap_detection = true;  // NB: Dolphin's own default is false; standalone presented true
         bool disable_copy_filter = false; // NB: Dolphin's own default is true; standalone presented false
         bool hdr_output          = false;
         int  stereo_mode         = 0;     // StereoMode int
