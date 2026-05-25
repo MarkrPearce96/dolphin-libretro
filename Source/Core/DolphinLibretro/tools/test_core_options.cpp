@@ -95,6 +95,16 @@ int main() {
     ck_int ("AA None msaa", e2.enhancements.msaa, 1);
     ck_bool("AA None ssaa", e2.enhancements.ssaa, false);
 
+    // ── Hacks ──
+    fake::reset();
+    fake::vars["dolphin_texcache_accuracy"] = "Fast";
+    fake::vars["dolphin_skip_efb_access"]   = "disabled";
+    Graphics::Values h{};
+    Graphics::Parse(&fake_cb, h);
+    ck_int ("Accuracy Fast-512",      h.hacks.texcache_accuracy, 512);
+    ck_bool("skip_efb_access set",    h.hacks.skip_efb_access, false);
+    ck_bool("disable_bbox default",   h.hacks.disable_bounding_box, true);
+
     std::printf("\n%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;
 }

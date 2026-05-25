@@ -248,6 +248,111 @@ void AppendDefinitions(std::vector<retro_core_option_v2_definition>& out)
         { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
         "disabled",
     });
+    // ── Hacks sub-tab ──
+    out.push_back({
+        "dolphin_texcache_accuracy", "Texture Cache Accuracy", nullptr,
+        "How aggressively cached textures are validated. Safe = fewest "
+        "misses (most accurate), Fast = highest performance.",
+        nullptr, nullptr,
+        {
+            { "Safe", "Safe" },
+            { "Default", "Default" },
+            { "Fast", "Fast" },
+            { nullptr, nullptr },
+        },
+        "Default",
+    });
+    out.push_back({
+        "dolphin_skip_efb_access", "Skip EFB Access from CPU", nullptr,
+        "Ignore CPU reads/writes of the EFB. Speed boost; disables some EFB-based effects.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_ignore_format_changes", "Ignore Format Changes", nullptr,
+        "Ignore EFB format changes. Speed win for many games; minor defects in a few.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_store_efb_to_texture", "Store EFB Copies to Texture Only", nullptr,
+        "Keep EFB copies on the GPU, bypassing RAM. Big speed boost; rare defects.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_defer_efb_copies", "Defer EFB Copies to RAM", nullptr,
+        "Wait for GPU sync before writing EFB copies to RAM. Speed boost.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_gpu_texture_decoding", "GPU Texture Decoding", nullptr,
+        "Decode textures on the GPU instead of the CPU.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_store_xfb_to_texture", "Store XFB Copies to Texture Only", nullptr,
+        "Keep XFB copies on the GPU. Big speed boost; rare defects.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_immediate_xfb", "Immediately Present XFB", nullptr,
+        "Display the XFB as soon as it's drawn. Lower latency, slight tearing risk.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_skip_duplicate_xfbs", "Skip Presenting Duplicate Frames", nullptr,
+        "Detect and skip identical consecutive frames to save GPU work.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_fast_depth_calc", "Fast Depth Calculation", nullptr,
+        "Use a faster GPU-friendly depth calculation path.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_disable_bounding_box", "Disable Bounding Box", nullptr,
+        "Disable bounding-box emulation. Big GPU speed-up; a few games need it (e.g. Paper Mario).",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_vertex_rounding", "Vertex Rounding", nullptr,
+        "Round vertex coordinates to integers. Fixes seams in some games at high resolutions.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_save_texcache_to_state", "Save Texture Cache to State", nullptr,
+        "Save the texture cache in save states. Larger states, smoother resume.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_vbi_skip", "VBI Skip", nullptr,
+        "Skip Vertical Blank Interrupts when lag is detected. Smoother audio off-100%; can freeze.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
 }
 
 void Parse(retro_environment_t cb, Values& out)
@@ -326,6 +431,26 @@ void Parse(retro_environment_t cb, Values& out)
     }
     if (const char* v = query("dolphin_stereo_swap_eyes"))   out.enhancements.stereo_swap_eyes = parse_bool(v);
     if (const char* v = query("dolphin_stereo_per_eye_full")) out.enhancements.stereo_per_eye_full = parse_bool(v);
+
+    // ── Hacks ──
+    if (const char* v = query("dolphin_skip_efb_access"))       out.hacks.skip_efb_access = parse_bool(v);
+    if (const char* v = query("dolphin_ignore_format_changes")) out.hacks.ignore_format_changes = parse_bool(v);
+    if (const char* v = query("dolphin_store_efb_to_texture"))  out.hacks.store_efb_to_texture = parse_bool(v);
+    if (const char* v = query("dolphin_defer_efb_copies"))      out.hacks.defer_efb_copies = parse_bool(v);
+    if (const char* v = query("dolphin_texcache_accuracy")) {
+        if      (std::strcmp(v, "Safe") == 0) out.hacks.texcache_accuracy = 0;
+        else if (std::strcmp(v, "Fast") == 0) out.hacks.texcache_accuracy = 512;
+        else                                  out.hacks.texcache_accuracy = 128;
+    }
+    if (const char* v = query("dolphin_gpu_texture_decoding"))  out.hacks.gpu_texture_decoding = parse_bool(v);
+    if (const char* v = query("dolphin_store_xfb_to_texture"))  out.hacks.store_xfb_to_texture = parse_bool(v);
+    if (const char* v = query("dolphin_immediate_xfb"))         out.hacks.immediate_xfb = parse_bool(v);
+    if (const char* v = query("dolphin_skip_duplicate_xfbs"))   out.hacks.skip_duplicate_xfbs = parse_bool(v);
+    if (const char* v = query("dolphin_fast_depth_calc"))       out.hacks.fast_depth_calc = parse_bool(v);
+    if (const char* v = query("dolphin_disable_bounding_box"))  out.hacks.disable_bounding_box = parse_bool(v);
+    if (const char* v = query("dolphin_vertex_rounding"))       out.hacks.vertex_rounding = parse_bool(v);
+    if (const char* v = query("dolphin_save_texcache_to_state")) out.hacks.save_texcache_to_state = parse_bool(v);
+    if (const char* v = query("dolphin_vbi_skip"))              out.hacks.vbi_skip = parse_bool(v);
 }
 
 #ifndef CORE_OPTIONS_TEST_ONLY
@@ -373,6 +498,22 @@ void Apply(const Values& v)
     Config::SetCurrent(Config::GFX_STEREO_MODE, static_cast<StereoMode>(v.enhancements.stereo_mode));
     Config::SetCurrent(Config::GFX_STEREO_SWAP_EYES, v.enhancements.stereo_swap_eyes);
     Config::SetCurrent(Config::GFX_STEREO_PER_EYE_RESOLUTION_FULL, v.enhancements.stereo_per_eye_full);
+
+    // ── Hacks ── (the option is the user-facing "skip/ignore/disable"; invert onto the engine bool)
+    Config::SetCurrent(Config::GFX_HACK_EFB_ACCESS_ENABLE, !v.hacks.skip_efb_access);
+    Config::SetCurrent(Config::GFX_HACK_EFB_EMULATE_FORMAT_CHANGES, !v.hacks.ignore_format_changes);
+    Config::SetCurrent(Config::GFX_HACK_SKIP_EFB_COPY_TO_RAM, v.hacks.store_efb_to_texture);
+    Config::SetCurrent(Config::GFX_HACK_DEFER_EFB_COPIES, v.hacks.defer_efb_copies);
+    Config::SetCurrent(Config::GFX_SAFE_TEXTURE_CACHE_COLOR_SAMPLES, v.hacks.texcache_accuracy);
+    Config::SetCurrent(Config::GFX_ENABLE_GPU_TEXTURE_DECODING, v.hacks.gpu_texture_decoding);
+    Config::SetCurrent(Config::GFX_HACK_SKIP_XFB_COPY_TO_RAM, v.hacks.store_xfb_to_texture);
+    Config::SetCurrent(Config::GFX_HACK_IMMEDIATE_XFB, v.hacks.immediate_xfb);
+    Config::SetCurrent(Config::GFX_HACK_SKIP_DUPLICATE_XFBS, v.hacks.skip_duplicate_xfbs);
+    Config::SetCurrent(Config::GFX_FAST_DEPTH_CALC, v.hacks.fast_depth_calc);
+    Config::SetCurrent(Config::GFX_HACK_BBOX_ENABLE, !v.hacks.disable_bounding_box);
+    Config::SetCurrent(Config::GFX_HACK_VERTEX_ROUNDING, v.hacks.vertex_rounding);
+    Config::SetCurrent(Config::GFX_SAVE_TEXTURE_CACHE_TO_STATE, v.hacks.save_texcache_to_state);
+    Config::SetCurrent(Config::GFX_HACK_VI_SKIP, v.hacks.vbi_skip);
 }
 #endif
 
