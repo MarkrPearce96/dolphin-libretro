@@ -113,6 +113,20 @@ int main() {
     ck_bool("manual_texture_sampling set", a.advanced.manual_texture_sampling, true);
     ck_bool("backend_mt default",          a.advanced.backend_multithreading, true);
 
+    // ── OSD ──
+    fake::reset();
+    fake::vars["dolphin_show_fps"]      = "enabled";
+    fake::vars["dolphin_perf_samp_window"] = "5000";
+    Graphics::Values o{};
+    Graphics::Parse(&fake_cb, o);
+    ck_bool("show_fps set",        o.osd.show_fps, true);
+    ck_int ("perf_samp_window",    o.osd.perf_samp_window, 5000);
+    ck_bool("show_speed_colors def", o.osd.show_speed_colors, true);
+
+    // ── Full schema size: 53 options + 1 terminator = 54 ──
+    ck_int("BuildDefinitions size (53 opts + terminator)",
+           static_cast<long>(BuildDefinitions().size()), 54);
+
     std::printf("\n%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;
 }

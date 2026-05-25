@@ -417,6 +417,85 @@ void AppendDefinitions(std::vector<retro_core_option_v2_definition>& out)
         { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
         "disabled",
     });
+    // ── On-Screen Display sub-tab ──
+    out.push_back({
+        "dolphin_osd_font_size", "On-Screen Message Font Size", nullptr,
+        "Point size for on-screen messages.",
+        nullptr, nullptr,
+        {
+            { "13", "Small" }, { "18", "Medium" }, { "24", "Large" }, { "36", "Extra Large" },
+            { nullptr, nullptr },
+        },
+        "13",
+    });
+    out.push_back({
+        "dolphin_perf_samp_window", "Performance Sample Window", nullptr,
+        "Sliding window for FPS/VPS averaging. Higher = more stable, slower "
+        "to update.",
+        nullptr, nullptr,
+        {
+            { "250", "250 ms" }, { "500", "500 ms" }, { "1000", "1000 ms" },
+            { "2000", "2000 ms" }, { "5000", "5000 ms" },
+            { nullptr, nullptr },
+        },
+        "1000",
+    });
+    out.push_back({
+        "dolphin_osd_messages", "Show On-Screen Messages", nullptr,
+        "Display Dolphin's own status messages (save states, achievements, etc.).",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_show_fps", "Show FPS", nullptr,
+        "Frames per second the GPU is drawing.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_show_ftimes", "Show Frame Times", nullptr,
+        "Per-frame GPU time graph.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_show_vps", "Show VPS", nullptr,
+        "VBlanks per second — the rate the game thinks it's running at.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_show_vtimes", "Show VBlank Times", nullptr,
+        "Per-vblank time graph.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_show_speed", "Show % Speed", nullptr,
+        "Emulation speed as a percentage of native.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_show_graphs", "Show Performance Graphs", nullptr,
+        "Render the FPS/VPS history as a graph.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_show_speed_colors", "Show Speed Colors", nullptr,
+        "Tint the speed indicator based on how close to native it is.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
 }
 
 void Parse(retro_environment_t cb, Values& out)
@@ -526,6 +605,18 @@ void Parse(retro_environment_t cb, Values& out)
     if (const char* v = query("dolphin_cpu_cull"))                out.advanced.cpu_cull = parse_bool(v);
     if (const char* v = query("dolphin_defer_efb_invalidation"))  out.advanced.defer_efb_invalidation = parse_bool(v);
     if (const char* v = query("dolphin_manual_texture_sampling")) out.advanced.manual_texture_sampling = parse_bool(v);
+
+    // ── On-Screen Display ──
+    if (const char* v = query("dolphin_osd_messages"))   out.osd.show_messages = parse_bool(v);
+    if (const char* v = query("dolphin_osd_font_size"))  out.osd.font_size = parse_int(v, 13);
+    if (const char* v = query("dolphin_show_fps"))       out.osd.show_fps = parse_bool(v);
+    if (const char* v = query("dolphin_show_ftimes"))    out.osd.show_ftimes = parse_bool(v);
+    if (const char* v = query("dolphin_show_vps"))       out.osd.show_vps = parse_bool(v);
+    if (const char* v = query("dolphin_show_vtimes"))    out.osd.show_vtimes = parse_bool(v);
+    if (const char* v = query("dolphin_show_speed"))     out.osd.show_speed = parse_bool(v);
+    if (const char* v = query("dolphin_show_graphs"))    out.osd.show_graphs = parse_bool(v);
+    if (const char* v = query("dolphin_show_speed_colors")) out.osd.show_speed_colors = parse_bool(v);
+    if (const char* v = query("dolphin_perf_samp_window")) out.osd.perf_samp_window = parse_int(v, 1000);
 }
 
 #ifndef CORE_OPTIONS_TEST_ONLY
@@ -601,6 +692,18 @@ void Apply(const Values& v)
     Config::SetCurrent(Config::GFX_HACK_EFB_DEFER_INVALIDATION, v.advanced.defer_efb_invalidation);
     // "Manual Texture Sampling" checked = FastTextureSampling OFF.
     Config::SetCurrent(Config::GFX_HACK_FAST_TEXTURE_SAMPLING, !v.advanced.manual_texture_sampling);
+
+    // ── On-Screen Display ──
+    Config::SetCurrent(Config::MAIN_OSD_MESSAGES, v.osd.show_messages);
+    Config::SetCurrent(Config::MAIN_OSD_FONT_SIZE, v.osd.font_size);
+    Config::SetCurrent(Config::GFX_SHOW_FPS, v.osd.show_fps);
+    Config::SetCurrent(Config::GFX_SHOW_FTIMES, v.osd.show_ftimes);
+    Config::SetCurrent(Config::GFX_SHOW_VPS, v.osd.show_vps);
+    Config::SetCurrent(Config::GFX_SHOW_VTIMES, v.osd.show_vtimes);
+    Config::SetCurrent(Config::GFX_SHOW_SPEED, v.osd.show_speed);
+    Config::SetCurrent(Config::GFX_SHOW_GRAPHS, v.osd.show_graphs);
+    Config::SetCurrent(Config::GFX_SHOW_SPEED_COLORS, v.osd.show_speed_colors);
+    Config::SetCurrent(Config::GFX_PERF_SAMP_WINDOW, v.osd.perf_samp_window);
 }
 #endif
 
