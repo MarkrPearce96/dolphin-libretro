@@ -105,6 +105,14 @@ int main() {
     ck_bool("skip_efb_access set",    h.hacks.skip_efb_access, false);
     ck_bool("disable_bbox default",   h.hacks.disable_bounding_box, true);
 
+    // ── Advanced ──
+    fake::reset();
+    fake::vars["dolphin_manual_texture_sampling"] = "enabled";
+    Graphics::Values a{};
+    Graphics::Parse(&fake_cb, a);
+    ck_bool("manual_texture_sampling set", a.advanced.manual_texture_sampling, true);
+    ck_bool("backend_mt default",          a.advanced.backend_multithreading, true);
+
     std::printf("\n%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;
 }

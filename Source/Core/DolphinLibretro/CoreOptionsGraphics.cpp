@@ -353,6 +353,70 @@ void AppendDefinitions(std::vector<retro_core_option_v2_definition>& out)
         { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
         "disabled",
     });
+    // ── Advanced sub-tab ──
+    out.push_back({
+        "dolphin_load_custom_textures", "Load Custom Textures", nullptr,
+        "Load high-resolution texture replacements from the user's Load/Textures folder.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_prefetch_custom_textures", "Prefetch Custom Textures", nullptr,
+        "Pre-load all custom textures into VRAM at boot. Eliminates load stutter; uses more memory.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_enable_graphics_mods", "Enable Graphics Mods", nullptr,
+        "Load graphics mods from the user's Load/GraphicMods folder.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_crop", "Crop", nullptr,
+        "Crop overscan/black borders from the rendered image.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_backend_multithreading", "Backend Multithreading", nullptr,
+        "Distribute video-backend work across multiple threads. Recommended on.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "enabled",
+    });
+    out.push_back({
+        "dolphin_prefer_vs_expansion", "Prefer VS for Point/Line Expansion", nullptr,
+        "Expand line/point primitives in the vertex shader instead of the geometry shader. Driver workaround.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_cpu_cull", "Cull Vertices on the CPU", nullptr,
+        "Cull invisible geometry on the CPU before sending to the GPU. Speeds up some games.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_defer_efb_invalidation", "Defer EFB Cache Invalidation", nullptr,
+        "Reduce overhead by deferring EFB-cache invalidations. Speed win; rare glitches.",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
+    out.push_back({
+        "dolphin_manual_texture_sampling", "Manual Texture Sampling", nullptr,
+        "Trade some speed for accuracy in the texture sampler. (Checked = manual; disables fast sampling.)",
+        nullptr, nullptr,
+        { { "enabled", "Enabled" }, { "disabled", "Disabled" }, { nullptr, nullptr } },
+        "disabled",
+    });
 }
 
 void Parse(retro_environment_t cb, Values& out)
@@ -451,6 +515,17 @@ void Parse(retro_environment_t cb, Values& out)
     if (const char* v = query("dolphin_vertex_rounding"))       out.hacks.vertex_rounding = parse_bool(v);
     if (const char* v = query("dolphin_save_texcache_to_state")) out.hacks.save_texcache_to_state = parse_bool(v);
     if (const char* v = query("dolphin_vbi_skip"))              out.hacks.vbi_skip = parse_bool(v);
+
+    // ── Advanced ──
+    if (const char* v = query("dolphin_load_custom_textures"))    out.advanced.load_custom_textures = parse_bool(v);
+    if (const char* v = query("dolphin_prefetch_custom_textures")) out.advanced.prefetch_custom_textures = parse_bool(v);
+    if (const char* v = query("dolphin_enable_graphics_mods"))    out.advanced.enable_graphics_mods = parse_bool(v);
+    if (const char* v = query("dolphin_crop"))                    out.advanced.crop = parse_bool(v);
+    if (const char* v = query("dolphin_backend_multithreading"))  out.advanced.backend_multithreading = parse_bool(v);
+    if (const char* v = query("dolphin_prefer_vs_expansion"))     out.advanced.prefer_vs_expansion = parse_bool(v);
+    if (const char* v = query("dolphin_cpu_cull"))                out.advanced.cpu_cull = parse_bool(v);
+    if (const char* v = query("dolphin_defer_efb_invalidation"))  out.advanced.defer_efb_invalidation = parse_bool(v);
+    if (const char* v = query("dolphin_manual_texture_sampling")) out.advanced.manual_texture_sampling = parse_bool(v);
 }
 
 #ifndef CORE_OPTIONS_TEST_ONLY
@@ -514,6 +589,18 @@ void Apply(const Values& v)
     Config::SetCurrent(Config::GFX_HACK_VERTEX_ROUNDING, v.hacks.vertex_rounding);
     Config::SetCurrent(Config::GFX_SAVE_TEXTURE_CACHE_TO_STATE, v.hacks.save_texcache_to_state);
     Config::SetCurrent(Config::GFX_HACK_VI_SKIP, v.hacks.vbi_skip);
+
+    // ── Advanced ──
+    Config::SetCurrent(Config::GFX_HIRES_TEXTURES, v.advanced.load_custom_textures);
+    Config::SetCurrent(Config::GFX_CACHE_HIRES_TEXTURES, v.advanced.prefetch_custom_textures);
+    Config::SetCurrent(Config::GFX_MODS_ENABLE, v.advanced.enable_graphics_mods);
+    Config::SetCurrent(Config::GFX_CROP, v.advanced.crop);
+    Config::SetCurrent(Config::GFX_BACKEND_MULTITHREADING, v.advanced.backend_multithreading);
+    Config::SetCurrent(Config::GFX_PREFER_VS_FOR_LINE_POINT_EXPANSION, v.advanced.prefer_vs_expansion);
+    Config::SetCurrent(Config::GFX_CPU_CULL, v.advanced.cpu_cull);
+    Config::SetCurrent(Config::GFX_HACK_EFB_DEFER_INVALIDATION, v.advanced.defer_efb_invalidation);
+    // "Manual Texture Sampling" checked = FastTextureSampling OFF.
+    Config::SetCurrent(Config::GFX_HACK_FAST_TEXTURE_SAMPLING, !v.advanced.manual_texture_sampling);
 }
 #endif
 
