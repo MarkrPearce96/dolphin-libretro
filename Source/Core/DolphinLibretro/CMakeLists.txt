@@ -19,6 +19,8 @@ target_sources(dolphin_libretro PRIVATE
     EmuThread.cpp
     CoreOptions.cpp
     CoreOptionsGraphics.cpp
+    CoreOptionsAudio.cpp
+    CoreOptionsCore.cpp
 )
 
 # Objective-C++ source needs ARC + AppKit/Metal/QuartzCore frameworks.
