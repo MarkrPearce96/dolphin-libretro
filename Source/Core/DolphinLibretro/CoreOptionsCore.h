@@ -23,7 +23,9 @@ struct Values
         bool        load_into_memory = false;        // MAIN_LOAD_GAME_INTO_MEMORY
         bool        override_region  = false;        // MAIN_OVERRIDE_REGION_SETTINGS
         std::string emulation_speed  = "1.000000";   // MAIN_EMULATION_SPEED (float multiplier)
-        int         fallback_region  = 1;            // MAIN_FALLBACK_REGION (DiscIO::Region; 1=NTSC-U)
+        int         fallback_region  = 1;            // MAIN_FALLBACK_REGION (DiscIO::Region; 1=NTSC-U).
+                                                     // Intentional: Dolphin's own default is locale-dependent
+                                                     // (GetDefaultRegion()); we pin NTSC-U for deterministic boots.
     } general;
 
     struct Advanced {
