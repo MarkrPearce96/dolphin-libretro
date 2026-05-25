@@ -57,6 +57,26 @@ endif()
 
 add_subdirectory(tools)
 
+# SP6: schema-fidelity check between this core's CoreOptions*.cpp and
+# RetroNest-Project's DolphinLibretroAdapter::settingsSchema(). The two
+# trees live in separate repos, so the host path is a cache var defaulting
+# to the user's known location; override with -DRETRONEST_DOLPHIN_LIBRETRO_ADAPTER=
+# at configure time (e.g. for CI).
+#
+# Invoke: cmake --build build-libretro --target check_schema_fidelity
+set(RETRONEST_DOLPHIN_LIBRETRO_ADAPTER
+    "$ENV{HOME}/Documents/Projects/RetroNest-Project/cpp/src/adapters/libretro/dolphin_libretro_adapter.cpp"
+    CACHE PATH "Host-side libretro adapter for schema-fidelity check"
+)
+add_custom_target(check_schema_fidelity
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_schema_fidelity.py
+            --core "${CMAKE_CURRENT_SOURCE_DIR}/CoreOptions*.cpp"
+            --host "${RETRONEST_DOLPHIN_LIBRETRO_ADAPTER}"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Checking core/host SettingDef schema fidelity"
+    VERBATIM
+)
+
 # Hide all symbols by default — libretro frontends only need the retro_*
 # C ABI. The RETRO_API macro in libretro.h adds explicit
 # __attribute__((visibility("default"))) per function on non-Windows.
