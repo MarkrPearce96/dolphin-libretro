@@ -355,4 +355,56 @@ void Parse(retro_environment_t cb, Values& out)
     }
 }
 
+#ifndef CORE_OPTIONS_TEST_ONLY
+void Apply(const Values& v)
+{
+    using ExpansionInterface::EXIDeviceType;
+
+    // ── General ──
+    Config::SetCurrent(Config::MAIN_CPU_THREAD, v.general.cpu_thread);
+    Config::SetCurrent(Config::MAIN_ENABLE_CHEATS, v.general.enable_cheats);
+    Config::SetCurrent(Config::MAIN_LOAD_GAME_INTO_MEMORY, v.general.load_into_memory);
+    Config::SetCurrent(Config::MAIN_OVERRIDE_REGION_SETTINGS, v.general.override_region);
+    Config::SetCurrent(Config::MAIN_EMULATION_SPEED,
+                       static_cast<float>(std::strtod(v.general.emulation_speed.c_str(), nullptr)));
+    Config::SetCurrent(Config::MAIN_FALLBACK_REGION,
+                       static_cast<DiscIO::Region>(v.general.fallback_region));
+
+    // ── Advanced ──
+    {
+        PowerPC::CPUCore core = PowerPC::DefaultCPUCore();  // arch-appropriate JIT
+        if      (v.advanced.cpu_core == "Interpreter")        core = PowerPC::CPUCore::Interpreter;
+        else if (v.advanced.cpu_core == "Cached Interpreter") core = PowerPC::CPUCore::CachedInterpreter;
+        // "JIT" -> DefaultCPUCore() (JIT64 on x86_64, JITARM64 on arm64)
+        Config::SetCurrent(Config::MAIN_CPU_CORE, core);
+    }
+    Config::SetCurrent(Config::MAIN_MMU, v.advanced.mmu);
+    Config::SetCurrent(Config::MAIN_PAUSE_ON_PANIC, v.advanced.pause_on_panic);
+    Config::SetCurrent(Config::MAIN_ACCURATE_CPU_CACHE, v.advanced.accurate_cpu_cache);
+    Config::SetCurrent(Config::MAIN_CORRECT_TIME_DRIFT, v.advanced.correct_time_drift);
+    Config::SetCurrent(Config::MAIN_RUSH_FRAME_PRESENTATION, v.advanced.rush_frame_presentation);
+    Config::SetCurrent(Config::MAIN_SMOOTH_EARLY_PRESENTATION, v.advanced.smooth_early_presentation);
+    Config::SetCurrent(Config::MAIN_OVERCLOCK_ENABLE, v.advanced.overclock_enable);
+    Config::SetCurrent(Config::MAIN_OVERCLOCK, static_cast<float>(v.advanced.overclock));
+    Config::SetCurrent(Config::MAIN_VI_OVERCLOCK_ENABLE, v.advanced.vi_overclock_enable);
+    Config::SetCurrent(Config::MAIN_VI_OVERCLOCK, static_cast<float>(v.advanced.vi_overclock));
+
+    // ── GameCube ──
+    Config::SetCurrent(Config::MAIN_SKIP_IPL, v.gamecube.skip_ipl);
+    Config::SetCurrent(Config::MAIN_GC_LANGUAGE, v.gamecube.language);
+    Config::SetCurrent(Config::MAIN_SLOT_A, static_cast<EXIDeviceType>(v.gamecube.slot_a));
+    Config::SetCurrent(Config::MAIN_SLOT_B, static_cast<EXIDeviceType>(v.gamecube.slot_b));
+    Config::SetCurrent(Config::MAIN_SERIAL_PORT_1, static_cast<EXIDeviceType>(v.gamecube.serial_port_1));
+
+    // ── Wii ──
+    Config::SetCurrent(Config::MAIN_WII_KEYBOARD, v.wii.keyboard);
+    Config::SetCurrent(Config::MAIN_WII_WIILINK_ENABLE, v.wii.wiilink);
+    Config::SetCurrent(Config::MAIN_WII_SD_CARD, v.wii.sd_card);
+    Config::SetCurrent(Config::MAIN_ALLOW_SD_WRITES, v.wii.sd_card_writes);
+    Config::SetCurrent(Config::MAIN_WII_SD_CARD_ENABLE_FOLDER_SYNC, v.wii.sd_card_folder_sync);
+    Config::SetCurrent(Config::MAIN_WII_SD_CARD_FILESIZE,
+                       static_cast<u64>(v.wii.sd_card_size));
+}
+#endif
+
 } // namespace DolphinLibretro::CoreOptions::Core
