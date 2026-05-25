@@ -86,7 +86,16 @@ void EmuThread::StopGame()
   m_frame_cv.notify_all();
 
   Core::System& system = Core::System::GetInstance();
+  // Core::Stop only *requests* the stop — it halts the CPU and returns
+  // immediately. Dolphin's emulation ("CPU-GPU") thread then unwinds and
+  // tears down subsystems (ExpansionInterface, etc.) on its own. We must
+  // join that thread before returning, or retro_unload_game's
+  // UICommon::ShutdownControllers() and retro_deinit's UICommon::Shutdown()
+  // race the still-running teardown → use-after-free crash in
+  // ExpansionInterfaceManager::Shutdown(). Core::Shutdown() performs that
+  // join (mirrors DolphinNoGUI's MainNoGUI: Core::Stop then Core::Shutdown).
   Core::Stop(system);
+  Core::Shutdown(system);
 
   m_running.store(false);
   m_paused.store(false);
