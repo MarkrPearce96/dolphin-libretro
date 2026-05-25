@@ -75,6 +75,26 @@ int main() {
     ck_str ("General shaderc",   g.general.shader_compilation, "Skip Drawing");
     ck_bool("General pft default (unset)", g.general.precision_frame_timing, true);
 
+    // ── Enhancements fan-out ──
+    fake::reset();
+    fake::vars["dolphin_antialiasing"]     = "4x SSAA";
+    fake::vars["dolphin_texture_filtering"] = "Force Linear and 4x Anisotropic";
+    fake::vars["dolphin_internal_resolution"] = "Auto";
+    Graphics::Values e{};
+    Graphics::Parse(&fake_cb, e);
+    ck_int ("AA msaa",            e.enhancements.msaa, 4);
+    ck_bool("AA ssaa",            e.enhancements.ssaa, true);
+    ck_int ("TexFilter aniso",    e.enhancements.aniso, 2);
+    ck_int ("TexFilter force",    e.enhancements.force_filter, 2);
+    ck_int ("InternalRes Auto-0", e.enhancements.internal_resolution, 0);
+
+    fake::reset();
+    fake::vars["dolphin_antialiasing"] = "None";
+    Graphics::Values e2{};
+    Graphics::Parse(&fake_cb, e2);
+    ck_int ("AA None msaa", e2.enhancements.msaa, 1);
+    ck_bool("AA None ssaa", e2.enhancements.ssaa, false);
+
     std::printf("\n%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;
 }
