@@ -106,6 +106,13 @@ constexpr size_t kSerializePadBytes = 1u << 20;  // 1 MiB
 // libretro wants a stable per-session bound. Grows, never shrinks.
 size_t s_serialize_size_cache = 0;
 
+// Cold-resume state load is deferred: the host calls retro_unserialize right
+// after retro_load_game, while Dolphin is still mid-async-boot. Applying then
+// races the booting emu thread (crash), so we stash the state and apply it on
+// the first retro_run frame where the core is fully Running.
+Common::UniqueBuffer<u8> s_pending_resume;
+bool s_has_pending_resume = false;
+
 // Run `fn` on the CPU thread (safe state for save/load) and block until it
 // completes. Core::RunOnCPUThread queues onto the CPU thread when called from
 // another thread (retro_run's thread); the Event makes completion explicit so
@@ -119,6 +126,28 @@ void RunStateOpAndWait(Fn&& fn)
         done.Set();
     });
     done.Wait();
+}
+
+// Apply a deferred cold-resume state once the core has finished booting. Called
+// each retro_run frame; no-ops until Core::IsRunning so the load lands on the
+// CPU thread at a safe point instead of racing boot.
+void MaybeApplyPendingResume()
+{
+    if (!s_has_pending_resume)
+        return;
+    if (!Core::IsRunning(Core::System::GetInstance()))
+        return;  // still booting — try again next frame
+
+    bool ok = false;
+    RunStateOpAndWait([&] {
+        std::span<u8> span(s_pending_resume.data(), s_pending_resume.size());
+        ok = State::LoadFromBuffer(Core::System::GetInstance(), span);
+    });
+    DolphinLibretro::Environment::Log(ok ? RETRO_LOG_INFO : RETRO_LOG_ERROR,
+        "[Savestate] deferred resume load %s (%zu bytes)",
+        ok ? "applied" : "FAILED", s_pending_resume.size());
+    s_has_pending_resume = false;
+    s_pending_resume.reset();
 }
 
 }  // namespace
@@ -265,10 +294,11 @@ RETRO_API void retro_run(void)
     Core::HostDispatchJobs(Core::System::GetInstance());
 
     if (s_emu_thread && s_emu_thread->IsRunning())
-        s_emu_thread->WaitForFrame();
-
-    if (s_emu_thread && s_emu_thread->IsRunning())
+    {
         MaybeEmitMemoryMap();
+        MaybeApplyPendingResume();
+        s_emu_thread->WaitForFrame();
+    }
 }
 
 RETRO_API size_t retro_serialize_size(void)
@@ -332,6 +362,21 @@ RETRO_API bool retro_unserialize(const void* data, size_t size)
     // native AchievementManager), so retro_unserialize intentionally does not gate on it.
     if (!data || !s_emu_thread || !s_emu_thread->IsRunning())
         return false;
+
+    // Cold resume: the host calls this right after retro_load_game, while Dolphin
+    // is still mid-async-boot. Loading then races the booting emu thread and
+    // crashes, so stash the state and apply it on the first fully-Running
+    // retro_run frame (MaybeApplyPendingResume). In-session loads (core already
+    // Running) fall through and apply immediately.
+    if (!Core::IsRunning(Core::System::GetInstance()))
+    {
+        s_pending_resume.reset(size);
+        std::memcpy(s_pending_resume.data(), data, size);
+        s_has_pending_resume = true;
+        DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+            "[Savestate] resume deferred until boot completes (%zu bytes)", size);
+        return true;
+    }
 
     bool ok = false;
     RunStateOpAndWait([&] {
@@ -420,6 +465,8 @@ RETRO_API void retro_unload_game(void)
         s_emu_thread->StopGame();
     s_memory_map_emitted = false;
     s_serialize_size_cache = 0;
+    s_has_pending_resume = false;
+    s_pending_resume.reset();
     DolphinLibretro::Input::Uninstall();
     UICommon::ShutdownControllers();
     DolphinLibretro::Metal::ReleaseWindowSystemInfo(&s_wsi);
