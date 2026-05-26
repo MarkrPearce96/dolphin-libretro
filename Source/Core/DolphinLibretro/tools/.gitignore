@@ -1,2 +1,3 @@
-# Manual-compile unit-test binary (built per its header comment); never committed.
+# Manual-compile unit-test binaries (built per their header comments); never committed.
 test_core_options
+test_memory_map
