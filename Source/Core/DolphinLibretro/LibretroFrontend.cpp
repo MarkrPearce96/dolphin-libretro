@@ -96,6 +96,10 @@ void MaybeEmitMemoryMap()
     }
 }
 
+// Headroom added to measured state size so a later, slightly-larger state still
+// fits the frontend-allocated buffer.
+constexpr size_t kSerializePadBytes = 1u << 20;  // 1 MiB
+
 // Cached upper bound for retro_serialize_size. Dolphin states are variable-size;
 // libretro wants a stable per-session bound. Grows, never shrinks.
 size_t s_serialize_size_cache = 0;
@@ -280,11 +284,11 @@ RETRO_API size_t retro_serialize_size(void)
         return s_serialize_size_cache;  // measure failed; keep any prior bound
 
     // Pad so a later, larger state still fits the frontend-allocated buffer.
-    const size_t padded = measured + measured / 4 + (1u << 20);  // +25% +1 MiB
+    const size_t padded = measured + measured / 4 + kSerializePadBytes;  // +25% +1 MiB
     if (padded > s_serialize_size_cache)
         s_serialize_size_cache = padded;
 
-    DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+    DolphinLibretro::Environment::Log(RETRO_LOG_DEBUG,
         "[Savestate] size measured=%zu reported=%zu", measured, s_serialize_size_cache);
     return s_serialize_size_cache;
 }
@@ -302,13 +306,18 @@ RETRO_API bool retro_serialize(void* data, size_t size)
         {
             std::memcpy(data, buffer.data(), written);
             ok = true;
-            if (written + (1u << 20) > s_serialize_size_cache)
-                s_serialize_size_cache = written + (1u << 20);  // keep bound honest
+            if (written + kSerializePadBytes > s_serialize_size_cache)
+                s_serialize_size_cache = written + kSerializePadBytes;  // keep bound honest
         }
         else
         {
             DolphinLibretro::Environment::Log(RETRO_LOG_ERROR,
                 "[Savestate] serialize: state %zu bytes > buffer %zu", written, size);
+            // Grow the reported bound so a re-query of retro_serialize_size fits
+            // the actual state next time (frontends that re-query before each save
+            // then self-heal). written==0 means measure failed — leave cache as-is.
+            if (written != 0 && written + kSerializePadBytes > s_serialize_size_cache)
+                s_serialize_size_cache = written + kSerializePadBytes;
         }
     });
     return ok;
@@ -316,6 +325,9 @@ RETRO_API bool retro_serialize(void* data, size_t size)
 
 RETRO_API bool retro_unserialize(const void* data, size_t size)
 {
+    // Note: RetroAchievements hardcore-mode load-blocking is enforced host-side by
+    // RetroNest's shared rcheevos runtime (this libretro build does not use Dolphin's
+    // native AchievementManager), so retro_unserialize intentionally does not gate on it.
     if (!data || !s_emu_thread || !s_emu_thread->IsRunning())
         return false;
 
