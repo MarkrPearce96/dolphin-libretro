@@ -53,6 +53,17 @@ int main()
         ck("wii: mem2 len 64MiB", d[1].len == 64u * 1024 * 1024);
     }
 
+    // Wii with MEM2 not yet allocated — should give 1 descriptor (MEM1 only)
+    {
+        RamLayout wii_nomem2{};
+        wii_nomem2.is_wii = true;
+        wii_nomem2.mem1 = mem1; wii_nomem2.mem1_size = 24u * 1024 * 1024;
+        // mem2 = nullptr, mem2_size = 0 (defaults)
+        const auto d = BuildDescriptors(wii_nomem2);
+        ck("wii no mem2: 1 descriptor", d.size() == 1);
+        ck("wii no mem2: mem1 @ 0x80000000", d[0].start == 0x80000000u);
+    }
+
     // Guard: no RAM → no descriptors
     {
         RamLayout empty{};

@@ -5,7 +5,7 @@
 
 namespace DolphinLibretro::MemoryMap
 {
-static retro_memory_descriptor MakeRam(void* ptr, std::uint32_t size, std::size_t start)
+static retro_memory_descriptor MakeRam(void* ptr, std::size_t size, std::size_t start)
 {
     retro_memory_descriptor d{};
     d.flags      = RETRO_MEMDESC_SYSTEM_RAM;
