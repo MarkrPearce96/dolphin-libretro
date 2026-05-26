@@ -23,8 +23,10 @@ echo "lipo -> $CORES_DIR/dolphin_libretro.dylib"
 lipo -create "$ARM64_DYLIB" "$X86_DYLIB" -output "$CORES_DIR/dolphin_libretro.dylib"
 
 echo "Sys -> $APP_RESOURCES/Sys"
+[ -d "$REPO_ROOT/Data/Sys" ] || { echo "ERROR: Data/Sys not found at $REPO_ROOT/Data/Sys — wrong repo root? Invoke as ./tools/deploy.sh or with an absolute path." >&2; exit 1; }
 mkdir -p "$APP_RESOURCES"
 # Idempotent: remove any prior Sys so cp doesn't nest a Sys/Sys on re-runs.
+# The guard above ensures we never delete the installed Sys without a valid source.
 rm -rf "$APP_RESOURCES/Sys"
 cp -R "$REPO_ROOT/Data/Sys" "$APP_RESOURCES/Sys"
 
