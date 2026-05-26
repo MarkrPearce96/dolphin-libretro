@@ -30,11 +30,13 @@
 #include "DolphinLibretro/MemoryMap.h"
 #include "UICommon/UICommon.h"
 
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <span>
 #include <string>
+#include <thread>
 
 namespace DolphinLibretro::Frontend {
 
@@ -54,12 +56,12 @@ std::unique_ptr<DolphinLibretro::EmuThread> s_emu_thread;
 WindowSystemInfo                             s_wsi{};
 bool s_memory_map_emitted = false;
 
-// Emit the RA memory map once RAM is allocated. BootCore is async, so RAM isn't
-// ready when retro_load_game returns — but it is by the first rendered frame.
-// The host's rcheevos init is gated behind a network achievement-set fetch that
-// lands many frames later, so first-frame emit wins the race. GameCube also works
-// via the retro_get_memory_data(SYSTEM_RAM) fallback; Wii REQUIRES this map
-// (MEM1 + MEM2 are separate allocations).
+// Emit the RA memory map once RAM is allocated. The host consumes it synchronously
+// (rc_libretro_memory_init at beginSession), so the PRIMARY emit happens at the end
+// of retro_load_game after waiting for Dolphin's async RAM allocation; this retro_run
+// call is a safety belt (no-op once emitted). GameCube also works via the
+// retro_get_memory_data(SYSTEM_RAM) fallback; Wii REQUIRES this map (MEM1 + MEM2 are
+// separate allocations).
 void MaybeEmitMemoryMap()
 {
     if (s_memory_map_emitted)
@@ -391,7 +393,20 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game)
     DolphinLibretro::Input::Install(DolphinLibretro::Frontend::g_input_state_cb);
 
     // 5. Boot via EmuThread.
-    return s_emu_thread->StartGame(game->path, s_wsi);
+    if (!s_emu_thread->StartGame(game->path, s_wsi))
+        return false;
+
+    // 6. Emit the RA memory map BEFORE returning. The RetroNest host calls
+    //    rc_libretro_memory_init synchronously at beginSession — right after
+    //    retro_load_game returns and BEFORE the first retro_run — so emitting
+    //    only from retro_run is too late, and Wii RA (which needs the separate
+    //    MEM1+MEM2 descriptors) would silently fall back to the GameCube-only
+    //    SYSTEM_RAM path. BootCore is async, so wait (bounded, ~5s) for Dolphin
+    //    to allocate RAM, then emit. The retro_run call is now a safety belt.
+    for (int i = 0; i < 500 && !Core::System::GetInstance().GetMemory().GetRAM(); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    MaybeEmitMemoryMap();
+    return true;
 }
 
 RETRO_API bool retro_load_game_special(unsigned, const struct retro_game_info*, size_t)
