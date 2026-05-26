@@ -111,6 +111,9 @@ void SetOnAfterLoadCallback(AfterLoadCallbackFunc callback);
 
 // SP8 (libretro): synchronous, in-memory state save/load used by retro_serialize.
 // Must be called with the CPU thread quiesced (e.g. via Core::RunOnCPUThread).
+// Unlike the public Save/Load/LoadAs functions, these low-level helpers do NOT
+// gate on emulation validity (Core::IsRunningOrStarting, NetPlay, RA hardcore) —
+// the caller is responsible for ensuring the core is in a valid/running state.
 // SaveToBuffer grows `buffer` to the measured size and returns bytes written
 // (0 on failure). LoadFromBuffer returns false on failure.
 std::size_t SaveToBuffer(Core::System& system, Common::UniqueBuffer<u8>& buffer);
