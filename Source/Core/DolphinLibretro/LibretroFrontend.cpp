@@ -16,19 +16,24 @@
 #include "DolphinLibretro/LibretroAudioStream.h"
 #include "DolphinLibretro/LibretroInputSource.h"
 
+#include "Common/Buffer.h"
 #include "Common/Config/Config.h"
+#include "Common/Event.h"
 #include "Common/Logging/Log.h"
 #include "Common/Logging/LogManager.h"
 #include "Common/WindowSystemInfo.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/HW/Memmap.h"
+#include "Core/State.h"
 #include "Core/System.h"
 #include "DolphinLibretro/MemoryMap.h"
 #include "UICommon/UICommon.h"
 
 #include <cstdlib>
+#include <cstring>
 #include <memory>
+#include <span>
 #include <string>
 
 namespace DolphinLibretro::Frontend {
@@ -89,6 +94,25 @@ void MaybeEmitMemoryMap()
             mmap.num_descriptors, layout.is_wii, layout.mem1_size,
             layout.is_wii ? layout.mem2_size : 0u);
     }
+}
+
+// Cached upper bound for retro_serialize_size. Dolphin states are variable-size;
+// libretro wants a stable per-session bound. Grows, never shrinks.
+size_t s_serialize_size_cache = 0;
+
+// Run `fn` on the CPU thread (safe state for save/load) and block until it
+// completes. Core::RunOnCPUThread queues onto the CPU thread when called from
+// another thread (retro_run's thread); the Event makes completion explicit so
+// we can safely read by-reference captures after this returns.
+template <typename Fn>
+void RunStateOpAndWait(Fn&& fn)
+{
+    Common::Event done;
+    Core::RunOnCPUThread(Core::System::GetInstance(), [&] {
+        fn();
+        done.Set();
+    });
+    done.Wait();
 }
 
 }  // namespace
@@ -241,9 +265,71 @@ RETRO_API void retro_run(void)
         MaybeEmitMemoryMap();
 }
 
-RETRO_API size_t retro_serialize_size(void) { return 0; }
-RETRO_API bool   retro_serialize(void*, size_t) { return false; }
-RETRO_API bool   retro_unserialize(const void*, size_t) { return false; }
+RETRO_API size_t retro_serialize_size(void)
+{
+    if (!s_emu_thread || !s_emu_thread->IsRunning())
+        return 0;
+
+    Common::UniqueBuffer<u8> scratch;
+    size_t measured = 0;
+    RunStateOpAndWait([&] {
+        measured = State::SaveToBuffer(Core::System::GetInstance(), scratch);
+    });
+
+    if (measured == 0)
+        return s_serialize_size_cache;  // measure failed; keep any prior bound
+
+    // Pad so a later, larger state still fits the frontend-allocated buffer.
+    const size_t padded = measured + measured / 4 + (1u << 20);  // +25% +1 MiB
+    if (padded > s_serialize_size_cache)
+        s_serialize_size_cache = padded;
+
+    DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+        "[Savestate] size measured=%zu reported=%zu", measured, s_serialize_size_cache);
+    return s_serialize_size_cache;
+}
+
+RETRO_API bool retro_serialize(void* data, size_t size)
+{
+    if (!data || !s_emu_thread || !s_emu_thread->IsRunning())
+        return false;
+
+    bool ok = false;
+    RunStateOpAndWait([&] {
+        Common::UniqueBuffer<u8> buffer(size);
+        const size_t written = State::SaveToBuffer(Core::System::GetInstance(), buffer);
+        if (written != 0 && written <= size)
+        {
+            std::memcpy(data, buffer.data(), written);
+            ok = true;
+            if (written + (1u << 20) > s_serialize_size_cache)
+                s_serialize_size_cache = written + (1u << 20);  // keep bound honest
+        }
+        else
+        {
+            DolphinLibretro::Environment::Log(RETRO_LOG_ERROR,
+                "[Savestate] serialize: state %zu bytes > buffer %zu", written, size);
+        }
+    });
+    return ok;
+}
+
+RETRO_API bool retro_unserialize(const void* data, size_t size)
+{
+    if (!data || !s_emu_thread || !s_emu_thread->IsRunning())
+        return false;
+
+    bool ok = false;
+    RunStateOpAndWait([&] {
+        // LoadFromBuffer takes a mutable span (PointerWrap in Read mode advances a
+        // copied pointer; it does not write to the buffer). Cast away const for the API.
+        std::span<u8> span(const_cast<u8*>(static_cast<const u8*>(data)), size);
+        ok = State::LoadFromBuffer(Core::System::GetInstance(), span);
+    });
+    if (!ok)
+        DolphinLibretro::Environment::Log(RETRO_LOG_ERROR, "[Savestate] unserialize failed");
+    return ok;
+}
 
 RETRO_API void retro_cheat_reset(void) {}
 RETRO_API void retro_cheat_set(unsigned, bool, const char*) {}
@@ -306,6 +392,7 @@ RETRO_API void retro_unload_game(void)
     if (s_emu_thread)
         s_emu_thread->StopGame();
     s_memory_map_emitted = false;
+    s_serialize_size_cache = 0;
     DolphinLibretro::Input::Uninstall();
     UICommon::ShutdownControllers();
     DolphinLibretro::Metal::ReleaseWindowSystemInfo(&s_wsi);
