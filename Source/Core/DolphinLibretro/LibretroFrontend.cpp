@@ -303,6 +303,17 @@ RETRO_API void retro_run(void)
     }
 }
 
+// RetroNest-private (resolved by the host via dlsym; mirrors pcsx2-libretro).
+// Dolphin runs the game on its own CPU/GPU threads, so the host merely halting
+// its retro_run loop (which pauses synchronous cores) does NOT stop Dolphin —
+// the in-game menu would leave the game running. The host calls this to actually
+// pause/resume Dolphin's emulation (Core::SetState Paused/Running via EmuThread).
+RETRO_API void retronest_set_paused(bool paused)
+{
+    if (s_emu_thread && s_emu_thread->IsRunning())
+        s_emu_thread->SetPaused(paused);
+}
+
 RETRO_API size_t retro_serialize_size(void)
 {
     if (!s_emu_thread || !s_emu_thread->IsRunning())
