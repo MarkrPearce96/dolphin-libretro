@@ -21,6 +21,7 @@ target_sources(dolphin_libretro PRIVATE
     CoreOptionsGraphics.cpp
     CoreOptionsAudio.cpp
     CoreOptionsCore.cpp
+    MemoryMap.cpp
 )
 
 # Objective-C++ source needs ARC + AppKit/Metal/QuartzCore frameworks.
