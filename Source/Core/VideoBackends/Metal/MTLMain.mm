@@ -212,6 +212,14 @@ void Metal::VideoBackend::PrepareWindow(WindowSystemInfo& wsi)
     const NSSize bounds = view.bounds.size;
     [layer setDrawableSize:NSMakeSize(bounds.width * scale, bounds.height * scale)];
 
+    // Until the game's first frame presents (delayed by boot + first-use shader
+    // compilation, and by the savestate load on resume), the layer has no
+    // drawable; show opaque black rather than the layer's uninitialized backing,
+    // which renders as a solid green flash on Apple GPUs. The first presented
+    // frame replaces this automatically.
+    [layer setOpaque:YES];
+    [layer setBackgroundColor:CGColorGetConstantColor(kCGColorBlack)];
+
     if (created_layer)
     {
       [view setWantsLayer:YES];
