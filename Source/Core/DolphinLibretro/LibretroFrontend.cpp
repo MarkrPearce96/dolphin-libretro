@@ -22,11 +22,13 @@
 #include "Common/Logging/Log.h"
 #include "Common/Logging/LogManager.h"
 #include "Common/WindowSystemInfo.h"
+#include "Core/AchievementManager.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
 #include "Core/HW/Memmap.h"
 #include "Core/State.h"
 #include "Core/System.h"
+#include "DiscIO/Volume.h"
 #include "DolphinLibretro/MemoryMap.h"
 #include "UICommon/UICommon.h"
 
@@ -400,6 +402,31 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game)
         DolphinLibretro::Environment::Log(RETRO_LOG_ERROR,
             "[retro_load_game] no game / no path");
         return false;
+    }
+
+    // Compute the RetroAchievements hash + game serial via DiscIO (handles RVZ
+    // and every other Dolphin disc format) and hand them to the host BEFORE it
+    // identifies the game. The host calls rc_client_begin_load_game with this
+    // hash because rcheevos' own path-based identify can't read compressed RVZ;
+    // it also lazily stores the serial. Static storage keeps the const char*s
+    // valid for the synchronous env_cb call.
+    {
+        static std::string s_ra_hash;
+        static std::string s_serial;
+        s_ra_hash = AchievementManager::CalculateHash(game->path);
+        if (s_ra_hash == "0")
+            s_ra_hash.clear();
+        s_serial.clear();
+        if (auto volume = DiscIO::CreateVolume(game->path))
+            s_serial = volume->GetGameID();
+
+        DolphinLibretro::Environment::RetroNestGameIdentity identity{s_ra_hash.c_str(), s_serial.c_str()};
+        if (auto cb = DolphinLibretro::Environment::GetEnvironmentCallback())
+            cb(DolphinLibretro::Environment::RETRONEST_SET_GAME_IDENTITY, &identity);
+        DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+            "[GameIdentity] hash=%s serial=%s",
+            s_ra_hash.empty() ? "(none)" : s_ra_hash.c_str(),
+            s_serial.empty() ? "(none)" : s_serial.c_str());
     }
 
     // 1. Get NSView from host + prepare WSI.

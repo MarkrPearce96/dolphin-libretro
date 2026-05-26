@@ -16,6 +16,18 @@ namespace DolphinLibretro::Environment {
 // Matches RETRONEST_ENVIRONMENT_GET_MACOS_NSVIEW = (1 | RETRO_ENVIRONMENT_PRIVATE).
 constexpr unsigned RETRONEST_GET_MACOS_NSVIEW = (1u | RETRO_ENVIRONMENT_PRIVATE);
 
+// Matches host RETRONEST_ENVIRONMENT_SET_GAME_IDENTITY = (5 | RETRO_ENVIRONMENT_PRIVATE).
+// The core CALLS this during retro_load_game to hand the host the game's
+// RetroAchievements hash + serial (both computed via DiscIO, so RVZ works).
+// data is a RetroNestGameIdentity*; the host copies both strings.
+constexpr unsigned RETRONEST_SET_GAME_IDENTITY = (5u | RETRO_ENVIRONMENT_PRIVATE);
+
+struct RetroNestGameIdentity
+{
+    const char* ra_hash;  // rcheevos hash string, or "" if unavailable
+    const char* serial;   // game id e.g. "GZ2P01", or "" if unavailable
+};
+
 // Stores the frontend's environ_cb at retro_set_environment time so other
 // modules can use it. Caller-friendly wrappers below.
 void SetEnvironmentCallback(retro_environment_t cb);
