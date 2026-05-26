@@ -16,6 +16,7 @@ namespace DolphinLibretro::Environment {
 // Matches RETRONEST_ENVIRONMENT_GET_MACOS_NSVIEW = (1 | RETRO_ENVIRONMENT_PRIVATE).
 constexpr unsigned RETRONEST_GET_MACOS_NSVIEW = (1u | RETRO_ENVIRONMENT_PRIVATE);
 
+// (ids 2-4 are reserved by the host — see RetroNest environment_callbacks.h.)
 // Matches host RETRONEST_ENVIRONMENT_SET_GAME_IDENTITY = (5 | RETRO_ENVIRONMENT_PRIVATE).
 // The core CALLS this during retro_load_game to hand the host the game's
 // RetroAchievements hash + serial (both computed via DiscIO, so RVZ works).

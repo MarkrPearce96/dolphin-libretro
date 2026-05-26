@@ -413,14 +413,22 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game)
     {
         static std::string s_ra_hash;
         static std::string s_serial;
-        s_ra_hash = AchievementManager::CalculateHash(game->path);
-        if (s_ra_hash == "0")
-            s_ra_hash.clear();
+        s_ra_hash.clear();
         s_serial.clear();
+        // Only hash/read when the disc actually opens. This guards CalculateHash,
+        // which otherwise dereferences a null volume on an unreadable/corrupt file.
+        // Safe to call here: retro_load_game runs before StartGame, so no emu-thread
+        // rcheevos work can race CalculateHash's process-global filereader registration.
         if (auto volume = DiscIO::CreateVolume(game->path))
-            s_serial = volume->GetGameID();
+        {
+            s_serial  = volume->GetGameID();
+            s_ra_hash = AchievementManager::CalculateHash(game->path);
+            if (s_ra_hash == "0")
+                s_ra_hash.clear();
+        }
 
-        DolphinLibretro::Environment::RetroNestGameIdentity identity{s_ra_hash.c_str(), s_serial.c_str()};
+        DolphinLibretro::Environment::RetroNestGameIdentity identity{
+            s_ra_hash.c_str(), s_serial.c_str()};
         if (auto cb = DolphinLibretro::Environment::GetEnvironmentCallback())
             cb(DolphinLibretro::Environment::RETRONEST_SET_GAME_IDENTITY, &identity);
         DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
