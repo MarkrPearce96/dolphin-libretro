@@ -314,6 +314,17 @@ RETRO_API void retronest_set_paused(bool paused)
         s_emu_thread->SetPaused(paused);
 }
 
+// RetroNest-private (resolved by the host via dlsym; mirrors pcsx2-libretro).
+// Fast-forward: like pause, the host can't speed Dolphin up by pacing its own
+// retro_run loop faster — Dolphin self-throttles on its CPU/GPU threads. So the
+// host calls this to toggle Dolphin's throttler directly, exactly as Dolphin's
+// own Fast Forward hotkey does (Core::SetIsThrottlerTempDisabled).
+RETRO_API void retronest_set_fast_forward(bool fast)
+{
+    if (s_emu_thread && s_emu_thread->IsRunning())
+        Core::SetIsThrottlerTempDisabled(fast);
+}
+
 RETRO_API size_t retro_serialize_size(void)
 {
     if (!s_emu_thread || !s_emu_thread->IsRunning())
