@@ -117,10 +117,20 @@ RETRO_API void retro_set_input_state(retro_input_state_t cb)
 
 RETRO_API void retro_init(void)
 {
-    // Set Dolphin's User directory. SP2 uses a fixed /tmp path; SP3 should
-    // route this through RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY so the host
-    // can put it under its own data root.
-    UICommon::SetUserDirectory("/tmp/dolphin-libretro-user");
+    // SP8: root Dolphin's User dir under the host-provided save directory so GC
+    // memcards / Wii NAND / SD images / savestates persist across runs. The host
+    // maps RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY to a stable per-emulator/per-system
+    // dir. env_cb is available here (retro_set_environment runs before retro_init).
+    // Fall back to the old /tmp path so boot never depends on the host answering.
+    std::string user_dir = "/tmp/dolphin-libretro-user";
+    if (auto cb = DolphinLibretro::Environment::GetEnvironmentCallback())
+    {
+        const char* save_dir = nullptr;
+        if (cb(RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY, &save_dir) && save_dir && *save_dir)
+            user_dir = std::string(save_dir) + "/dolphin-libretro-user";
+    }
+    DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] user dir: %s", user_dir.c_str());
+    UICommon::SetUserDirectory(user_dir);
     UICommon::Init();
 
     // Optionally route Dolphin's own LogManager output to stderr at INFO level
