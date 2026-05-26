@@ -7,9 +7,11 @@
 
 #include <cstddef>
 #include <functional>
+#include <span>
 #include <string>
 #include <type_traits>
 
+#include "Common/Buffer.h"
 #include "Common/CommonTypes.h"
 
 namespace Core
@@ -106,4 +108,11 @@ void UndoLoadState(Core::System& system);
 // for calling back into UI code without introducing a dependency on it in core
 using AfterLoadCallbackFunc = std::function<void()>;
 void SetOnAfterLoadCallback(AfterLoadCallbackFunc callback);
+
+// SP8 (libretro): synchronous, in-memory state save/load used by retro_serialize.
+// Must be called with the CPU thread quiesced (e.g. via Core::RunOnCPUThread).
+// SaveToBuffer grows `buffer` to the measured size and returns bytes written
+// (0 on failure). LoadFromBuffer returns false on failure.
+std::size_t SaveToBuffer(Core::System& system, Common::UniqueBuffer<u8>& buffer);
+bool LoadFromBuffer(Core::System& system, std::span<u8> buffer);
 }  // namespace State
