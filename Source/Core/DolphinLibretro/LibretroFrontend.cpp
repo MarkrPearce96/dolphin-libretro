@@ -22,7 +22,9 @@
 #include "Common/WindowSystemInfo.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Core.h"
+#include "Core/HW/Memmap.h"
 #include "Core/System.h"
+#include "DolphinLibretro/MemoryMap.h"
 #include "UICommon/UICommon.h"
 
 #include <cstdlib>
@@ -45,6 +47,49 @@ namespace {
 
 std::unique_ptr<DolphinLibretro::EmuThread> s_emu_thread;
 WindowSystemInfo                             s_wsi{};
+bool s_memory_map_emitted = false;
+
+// Emit the RA memory map once RAM is allocated. BootCore is async, so RAM isn't
+// ready when retro_load_game returns — but it is by the first rendered frame.
+// The host's rcheevos init is gated behind a network achievement-set fetch that
+// lands many frames later, so first-frame emit wins the race. GameCube also works
+// via the retro_get_memory_data(SYSTEM_RAM) fallback; Wii REQUIRES this map
+// (MEM1 + MEM2 are separate allocations).
+void MaybeEmitMemoryMap()
+{
+    if (s_memory_map_emitted)
+        return;
+
+    auto& system = Core::System::GetInstance();
+    auto& memory = system.GetMemory();
+    if (!memory.GetRAM())
+        return;  // RAM not allocated yet — try again next frame
+
+    DolphinLibretro::MemoryMap::RamLayout layout{};
+    layout.is_wii    = system.IsWii();
+    layout.mem1      = memory.GetRAM();
+    layout.mem1_size = memory.GetRamSizeReal();
+    layout.mem2      = memory.GetEXRAM();
+    layout.mem2_size = memory.GetExRamSizeReal();
+
+    const auto descriptors = DolphinLibretro::MemoryMap::BuildDescriptors(layout);
+    if (descriptors.empty())
+        return;
+
+    retro_memory_map mmap{};
+    mmap.descriptors     = descriptors.data();
+    mmap.num_descriptors = static_cast<unsigned>(descriptors.size());
+
+    auto cb = DolphinLibretro::Environment::GetEnvironmentCallback();
+    if (cb && cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &mmap))
+    {
+        s_memory_map_emitted = true;
+        DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+            "[MemoryMap] emitted %u descriptor(s), is_wii=%d, mem1=%u bytes, mem2=%u bytes",
+            mmap.num_descriptors, layout.is_wii, layout.mem1_size,
+            layout.is_wii ? layout.mem2_size : 0u);
+    }
+}
 
 }  // namespace
 
@@ -191,6 +236,9 @@ RETRO_API void retro_run(void)
 
     if (s_emu_thread && s_emu_thread->IsRunning())
         s_emu_thread->WaitForFrame();
+
+    if (s_emu_thread && s_emu_thread->IsRunning())
+        MaybeEmitMemoryMap();
 }
 
 RETRO_API size_t retro_serialize_size(void) { return 0; }
@@ -257,13 +305,30 @@ RETRO_API void retro_unload_game(void)
 {
     if (s_emu_thread)
         s_emu_thread->StopGame();
+    s_memory_map_emitted = false;
     DolphinLibretro::Input::Uninstall();
     UICommon::ShutdownControllers();
     DolphinLibretro::Metal::ReleaseWindowSystemInfo(&s_wsi);
 }
 
 RETRO_API unsigned retro_get_region(void) { return RETRO_REGION_NTSC; }
-RETRO_API void*    retro_get_memory_data(unsigned) { return nullptr; }
-RETRO_API size_t   retro_get_memory_size(unsigned) { return 0; }
+
+RETRO_API void* retro_get_memory_data(unsigned id)
+{
+    if (id != RETRO_MEMORY_SYSTEM_RAM)
+        return nullptr;
+    if (!s_emu_thread || !s_emu_thread->IsRunning())
+        return nullptr;
+    return Core::System::GetInstance().GetMemory().GetRAM();  // MEM1
+}
+
+RETRO_API size_t retro_get_memory_size(unsigned id)
+{
+    if (id != RETRO_MEMORY_SYSTEM_RAM)
+        return 0;
+    if (!s_emu_thread || !s_emu_thread->IsRunning())
+        return 0;
+    return Core::System::GetInstance().GetMemory().GetRamSizeReal();
+}
 
 }  // extern "C"
