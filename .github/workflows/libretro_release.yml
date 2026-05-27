@@ -1,0 +1,118 @@
+name: libretro_release
+
+# Builds the dolphin-libretro core (macOS x86_64) on a v* tag push and publishes
+# a GitHub Release with dolphin_libretro.dylib.zip — the asset RetroNest installs.
+# Mirrors the pcsx2-libretro / ppsspp-libretro release workflows.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write  # required for softprops/action-gh-release to create releases
+
+jobs:
+  build:
+    name: Build macOS x86_64
+    # macos-14 = Apple Silicon; we build x86_64 via Rosetta + x86_64 Homebrew at
+    # /usr/local. Chosen over macos-13 because the Intel runner pool is starved.
+    runs-on: macos-14
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rosetta
+        run: softwareupdate --install-rosetta --agree-to-license || true
+
+      - name: Install x86_64 Homebrew at /usr/local
+        run: |
+          if [ ! -x /usr/local/bin/brew ]; then
+            NONINTERACTIVE=1 arch -x86_64 /bin/bash -c \
+              "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          fi
+          arch -x86_64 /usr/local/bin/brew --version
+
+      - name: Install dependencies (x86_64)
+        run: |
+          arch -x86_64 /usr/local/bin/brew update
+          # Runtime deps confirmed from the local x86_64 dylib's otool -L links
+          # (fmt sdl3 lz4 lzo xz zstd) + build tools + libpng. Tune over 1-2 CI
+          # runs if configure/link reports a missing dep.
+          arch -x86_64 /usr/local/bin/brew install \
+            cmake ninja pkg-config fmt sdl3 lz4 lzo xz zstd libpng
+
+      - name: Configure (x86_64, scrubbing /opt/homebrew)
+        run: |
+          # Scrub /opt/homebrew (arm64 brew) so CMake doesn't link arm64 libs.
+          arch -x86_64 env \
+            HOMEBREW_PREFIX=/usr/local \
+            HOMEBREW_CELLAR=/usr/local/Cellar \
+            HOMEBREW_REPOSITORY=/usr/local/Homebrew \
+            PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig \
+            PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
+            /usr/local/bin/cmake -S . -B build -G Ninja \
+              -DCMAKE_PREFIX_PATH=/usr/local \
+              -DCMAKE_IGNORE_PATH=/opt/homebrew \
+              -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+              -DENABLE_LIBRETRO=ON \
+              -DENABLE_QT=OFF \
+              -DENABLE_NOGUI=OFF \
+              -DENABLE_TESTS=OFF \
+              -DENCODE_FRAMEDUMPS=OFF \
+              -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build dolphin_libretro
+        run: |
+          arch -x86_64 env PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
+            /usr/local/bin/cmake --build build --target dolphin_libretro -j
+
+      - name: Package dolphin_libretro.dylib.zip
+        run: |
+          set -euo pipefail
+          DYLIB=build/Source/Core/DolphinLibretro/dolphin_libretro.dylib
+          test -f "$DYLIB"
+          file "$DYLIB"            # expect: Mach-O 64-bit ... x86_64
+          mkdir -p stage && cp "$DYLIB" stage/
+          (cd stage && zip -j ../dolphin_libretro.dylib.zip dolphin_libretro.dylib)
+          ls -la dolphin_libretro.dylib.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dolphin_libretro-dylib-zip
+          path: dolphin_libretro.dylib.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: dolphin_libretro-dylib-zip
+          path: .
+      - name: Compute upstream SHA
+        id: meta
+        run: |
+          git remote add upstream https://github.com/dolphin-emu/dolphin.git
+          # --no-tags: don't pull upstream Dolphin's tags into our release repo
+          git fetch --no-tags upstream master
+          echo "upstream_short=$(git merge-base HEAD upstream/master | cut -c1-7)" >> "$GITHUB_OUTPUT"
+      - name: Compose body
+        run: |
+          {
+            echo "**Platform:** macOS x86_64 (Intel + Apple Silicon via Rosetta)"
+            echo "**Upstream Dolphin:** ${{ steps.meta.outputs.upstream_short }} (master)"
+          } > body.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: dolphin_libretro.dylib.zip
+          body_path: body.md
+          generate_release_notes: true
+          fail_on_unmatched_files: true  # fail loudly if the dylib zip is missing
