@@ -26,6 +26,22 @@ jobs:
       - name: Install Rosetta
         run: softwareupdate --install-rosetta --agree-to-license || true
 
+      - name: Select newest Xcode (Dolphin needs Clang 16+ for C++20 aggregate-init)
+        run: |
+          # The runner's default Xcode (15.4 = Apple Clang 15) is too old for
+          # upstream Dolphin's HookableEvent (parenthesized aggregate init through
+          # make_unique, a C++20 feature). Pick the newest Xcode installed and
+          # fail fast if it's still < 16 rather than dying mid-build.
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Selecting ${LATEST:-/Applications/Xcode.app}"
+          sudo xcode-select -s "${LATEST:-/Applications/Xcode.app}/Contents/Developer"
+          /usr/bin/c++ --version
+          ver=$(/usr/bin/c++ --version | sed -n 's/.*Apple clang version \([0-9][0-9]*\).*/\1/p' | head -1)
+          if [ "${ver:-0}" -lt 16 ]; then
+            echo "::error::Need Apple Clang >= 16 (Xcode 16+); newest on this runner is $ver. Bump runs-on to macos-15."
+            exit 1
+          fi
+
       - name: Install x86_64 Homebrew at /usr/local
         run: |
           if [ ! -x /usr/local/bin/brew ]; then
