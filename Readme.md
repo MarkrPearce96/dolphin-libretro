@@ -1,3 +1,25 @@
+# dolphin-libretro (RetroNest fork)
+
+A libretro core build of [Dolphin](https://github.com/dolphin-emu/dolphin) (GameCube + Wii),
+forked for [RetroNest](https://github.com/MarkrPearce96/RetroNest-Project). Adds the RetroNest
+libretro integration: Metal NSView handover, RetroAchievements game-identity + memory map,
+savestates, pause / fast-forward, and persistent user dir.
+
+## Install
+RetroNest installs this core automatically ("Install Dolphin") from this repo's GitHub Releases
+(macOS x86_64 `dolphin_libretro.dylib.zip`). License: GPL-2.0+ (inherited from Dolphin).
+
+## Build (local, macOS x86_64)
+See the RetroNest build notes. In short:
+`arch -x86_64 cmake -B build-libretro-x86_64 -G Ninja -DENABLE_LIBRETRO=ON -DENABLE_QT=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local` then build the `dolphin_libretro` target.
+
+## Releases / upstream rebase
+See [`UPSTREAM-UPDATE.md`](UPSTREAM-UPDATE.md).
+
+---
+
+*The upstream Dolphin README follows.*
+
 # Dolphin - A GameCube and Wii Emulator
 
 [Homepage](https://dolphin-emu.org/) | [Project Site](https://github.com/dolphin-emu/dolphin) | [Buildbot](https://dolphin.ci/) | [Forums](https://forums.dolphin-emu.org/) | [Wiki](https://wiki.dolphin-emu.org/) | [GitHub Wiki](https://github.com/dolphin-emu/dolphin/wiki) | [Issue Tracker](https://bugs.dolphin-emu.org/projects/emulator/issues) | [Coding Style](https://github.com/dolphin-emu/dolphin/blob/master/Contributing.md) | [Transifex Page](https://app.transifex.com/dolphinemu/dolphin-emu/dashboard/) | [Analytics](https://mon.dolphin-emu.org/)
