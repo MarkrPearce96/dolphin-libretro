@@ -54,10 +54,14 @@ jobs:
         run: |
           arch -x86_64 /usr/local/bin/brew update
           # Runtime deps confirmed from the local x86_64 dylib's otool -L links
-          # (fmt sdl3 lz4 lzo xz zstd) + build tools + libpng. Tune over 1-2 CI
+          # (sdl3 lz4 lzo xz zstd) + build tools + libpng. Tune over 1-2 CI
           # runs if configure/link reports a missing dep.
+          # fmt is deliberately NOT brewed: brew fmt 12.1→12.2 broke Dolphin's
+          # PanicYesNoFmt consteval checks (v2026.07.03 run) — we build the
+          # vendored Externals/fmt instead (USE_SYSTEM_FMT=OFF below), which
+          # also drops the libfmt.dylib runtime dependency from the release.
           arch -x86_64 /usr/local/bin/brew install \
-            cmake ninja pkg-config fmt sdl3 lz4 lzo xz zstd libpng
+            cmake ninja pkg-config sdl3 lz4 lzo xz zstd libpng
 
       - name: Configure (x86_64, scrubbing /opt/homebrew)
         run: |
@@ -77,6 +81,7 @@ jobs:
               -DENABLE_NOGUI=OFF \
               -DENABLE_TESTS=OFF \
               -DENCODE_FRAMEDUMPS=OFF \
+              -DUSE_SYSTEM_FMT=OFF \
               -DCMAKE_BUILD_TYPE=Release
 
       - name: Build dolphin_libretro

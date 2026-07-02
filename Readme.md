@@ -11,7 +11,8 @@ RetroNest installs this core automatically ("Install Dolphin") from this repo's 
 
 ## Build (local, macOS x86_64)
 See the RetroNest build notes. In short:
-`arch -x86_64 cmake -B build-libretro-x86_64 -G Ninja -DENABLE_LIBRETRO=ON -DENABLE_QT=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local` then build the `dolphin_libretro` target.
+`arch -x86_64 cmake -B build-libretro-x86_64 -G Ninja -DENABLE_LIBRETRO=ON -DENABLE_QT=OFF -DUSE_SYSTEM_FMT=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local` then build the `dolphin_libretro` target.
+(`USE_SYSTEM_FMT=OFF` builds the vendored Externals/fmt — brew fmt 12.2 breaks Dolphin's consteval assert macros and adds a runtime libfmt dependency.)
 
 ## Releases / upstream rebase
 See [`UPSTREAM-UPDATE.md`](UPSTREAM-UPDATE.md).
