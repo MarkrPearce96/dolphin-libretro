@@ -227,6 +227,12 @@ bool LoadFromBuffer(Core::System& system, std::span<u8> buffer)
   return p.IsReadMode();
 }
 
+// SP8 (libretro): see State.h.
+u32 GetSaveStateVersion()
+{
+  return STATE_VERSION;
+}
+
 // Returns the required size, or 0 on failure.
 std::size_t SaveToBuffer(Core::System& system, Common::UniqueBuffer<u8>& buffer)
 {

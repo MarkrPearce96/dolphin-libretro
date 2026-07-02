@@ -118,4 +118,9 @@ void SetOnAfterLoadCallback(AfterLoadCallbackFunc callback);
 // (0 on failure). LoadFromBuffer returns false on failure.
 std::size_t SaveToBuffer(Core::System& system, Common::UniqueBuffer<u8>& buffer);
 bool LoadFromBuffer(Core::System& system, std::span<u8> buffer);
+
+// SP8 (libretro): expose STATE_VERSION (private to State.cpp) so retro_serialize
+// can stamp it into a buffer header (DolphinLibretro/StateHeader.h) and
+// retro_unserialize can reject stale blobs instead of corrupting core state.
+u32 GetSaveStateVersion();
 }  // namespace State

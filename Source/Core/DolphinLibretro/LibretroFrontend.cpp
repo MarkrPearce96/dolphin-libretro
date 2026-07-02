@@ -30,6 +30,7 @@
 #include "Core/System.h"
 #include "DiscIO/Volume.h"
 #include "DolphinLibretro/MemoryMap.h"
+#include "DolphinLibretro/StateHeader.h"
 #include "UICommon/UICommon.h"
 
 #include <chrono>
@@ -114,6 +115,21 @@ size_t s_serialize_size_cache = 0;
 // the first retro_run frame where the core is fully Running.
 Common::UniqueBuffer<u8> s_pending_resume;
 bool s_has_pending_resume = false;
+
+// Boot gate for retro_serialize_size / retro_serialize. EmuThread::IsRunning()
+// flips true as soon as the ASYNC BootCore request is accepted (EmuThread.cpp),
+// while Dolphin is still constructing subsystems — and State::SaveToBuffer
+// deliberately skips Dolphin's own validity gates (State.h), so serializing
+// mid-boot walks half-initialized state and crashes. Require Core to have
+// actually reached Running-or-Paused: Core::IsRunning (Core.h) is exactly
+// that predicate, and it's the same readiness test retro_unserialize uses.
+// Paused MUST stay serializable — RetroNest pauses via retronest_set_paused
+// before Save & Exit, and savestates while paused must keep working.
+bool IsSerializableNow()
+{
+    return s_emu_thread && s_emu_thread->IsRunning() &&
+           Core::IsRunning(Core::System::GetInstance());
+}
 
 // Run `fn` on the CPU thread (safe state for save/load) and block until it
 // completes. Core::RunOnCPUThread queues onto the CPU thread when called from
@@ -327,7 +343,7 @@ RETRO_API void retronest_set_fast_forward(bool fast)
 
 RETRO_API size_t retro_serialize_size(void)
 {
-    if (!s_emu_thread || !s_emu_thread->IsRunning())
+    if (!IsSerializableNow())
         return 0;
 
     Common::UniqueBuffer<u8> scratch;
@@ -339,8 +355,10 @@ RETRO_API size_t retro_serialize_size(void)
     if (measured == 0)
         return s_serialize_size_cache;  // measure failed; keep any prior bound
 
-    // Pad so a later, larger state still fits the frontend-allocated buffer.
-    const size_t padded = measured + measured / 4 + kSerializePadBytes;  // +25% +1 MiB
+    // Pad so a later, larger state still fits the frontend-allocated buffer,
+    // plus room for the version header retro_serialize prepends.
+    const size_t padded = measured + measured / 4 + kSerializePadBytes  // +25% +1 MiB
+                          + DolphinLibretro::StateHeader::kHeaderSize;
     if (padded > s_serialize_size_cache)
         s_serialize_size_cache = padded;
 
@@ -351,29 +369,37 @@ RETRO_API size_t retro_serialize_size(void)
 
 RETRO_API bool retro_serialize(void* data, size_t size)
 {
-    if (!data || !s_emu_thread || !s_emu_thread->IsRunning())
+    if (!data || !IsSerializableNow())
+        return false;
+
+    // Buffer layout: [16-byte StateHeader][DoState payload] — see StateHeader.h.
+    constexpr size_t kHdr = DolphinLibretro::StateHeader::kHeaderSize;
+    if (size < kHdr)
         return false;
 
     bool ok = false;
     RunStateOpAndWait([&] {
-        Common::UniqueBuffer<u8> buffer(size);
+        Common::UniqueBuffer<u8> buffer(size - kHdr);
         const size_t written = State::SaveToBuffer(Core::System::GetInstance(), buffer);
-        if (written != 0 && written <= size)
+        if (written != 0 && written + kHdr <= size)
         {
-            std::memcpy(data, buffer.data(), written);
+            u8* out = static_cast<u8*>(data);
+            DolphinLibretro::StateHeader::Pack(out, State::GetSaveStateVersion());
+            std::memcpy(out + kHdr, buffer.data(), written);
             ok = true;
-            if (written + kSerializePadBytes > s_serialize_size_cache)
-                s_serialize_size_cache = written + kSerializePadBytes;  // keep bound honest
+            if (written + kHdr + kSerializePadBytes > s_serialize_size_cache)
+                s_serialize_size_cache = written + kHdr + kSerializePadBytes;  // keep bound honest
         }
         else
         {
             DolphinLibretro::Environment::Log(RETRO_LOG_ERROR,
-                "[Savestate] serialize: state %zu bytes > buffer %zu", written, size);
+                "[Savestate] serialize: state %zu (+%zu header) bytes > buffer %zu",
+                written, kHdr, size);
             // Grow the reported bound so a re-query of retro_serialize_size fits
             // the actual state next time (frontends that re-query before each save
             // then self-heal). written==0 means measure failed — leave cache as-is.
-            if (written != 0 && written + kSerializePadBytes > s_serialize_size_cache)
-                s_serialize_size_cache = written + kSerializePadBytes;
+            if (written != 0 && written + kHdr + kSerializePadBytes > s_serialize_size_cache)
+                s_serialize_size_cache = written + kHdr + kSerializePadBytes;
         }
     });
     return ok;
@@ -387,6 +413,45 @@ RETRO_API bool retro_unserialize(const void* data, size_t size)
     if (!data || !s_emu_thread || !s_emu_thread->IsRunning())
         return false;
 
+    // Version header check FIRST — before the deferred-resume stash — so both
+    // the immediate and deferred paths see the same validated, header-stripped
+    // payload (MaybeApplyPendingResume then never needs to know about headers).
+    // A version-mismatched blob is rejected here without touching core state.
+    const u8* payload = static_cast<const u8*>(data);
+    size_t payload_size = size;
+    {
+        namespace SH = DolphinLibretro::StateHeader;
+        SH::Header hdr{};
+        switch (SH::Parse(payload, payload_size, State::GetSaveStateVersion(), &hdr))
+        {
+        case SH::ParseResult::Ok:
+            payload += SH::kHeaderSize;
+            payload_size -= SH::kHeaderSize;
+            break;
+        case SH::ParseResult::Legacy:
+            // Headerless blob from an older core build (e.g. a persisted .resume
+            // file) — grandfathered: load the whole buffer exactly as before.
+            DolphinLibretro::Environment::Log(RETRO_LOG_WARN,
+                "[Savestate] legacy headerless state (%zu bytes) — loading as-is", size);
+            break;
+        case SH::ParseResult::Truncated:
+            DolphinLibretro::Environment::Log(RETRO_LOG_ERROR,
+                "[Savestate] rejected: header magic but only %zu bytes — corrupt", size);
+            return false;
+        case SH::ParseResult::BadHeaderVersion:
+            DolphinLibretro::Environment::Log(RETRO_LOG_ERROR,
+                "[Savestate] rejected: header version %u, this core supports %u",
+                hdr.header_version, SH::kHeaderVersion);
+            return false;
+        case SH::ParseResult::StateVersionMismatch:
+            DolphinLibretro::Environment::Log(RETRO_LOG_ERROR,
+                "[Savestate] rejected: state version %u != current %u — "
+                "savestate is from a different core build",
+                hdr.state_version, State::GetSaveStateVersion());
+            return false;
+        }
+    }
+
     // Cold resume: the host calls this right after retro_load_game, while Dolphin
     // is still mid-async-boot. Loading then races the booting emu thread and
     // crashes, so stash the state and apply it on the first fully-Running
@@ -394,11 +459,11 @@ RETRO_API bool retro_unserialize(const void* data, size_t size)
     // Running) fall through and apply immediately.
     if (!Core::IsRunning(Core::System::GetInstance()))
     {
-        s_pending_resume.reset(size);
-        std::memcpy(s_pending_resume.data(), data, size);
+        s_pending_resume.reset(payload_size);
+        std::memcpy(s_pending_resume.data(), payload, payload_size);
         s_has_pending_resume = true;
         DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
-            "[Savestate] resume deferred until boot completes (%zu bytes)", size);
+            "[Savestate] resume deferred until boot completes (%zu bytes)", payload_size);
         return true;
     }
 
@@ -406,7 +471,7 @@ RETRO_API bool retro_unserialize(const void* data, size_t size)
     RunStateOpAndWait([&] {
         // LoadFromBuffer takes a mutable span (PointerWrap in Read mode advances a
         // copied pointer; it does not write to the buffer). Cast away const for the API.
-        std::span<u8> span(const_cast<u8*>(static_cast<const u8*>(data)), size);
+        std::span<u8> span(const_cast<u8*>(payload), payload_size);
         ok = State::LoadFromBuffer(Core::System::GetInstance(), span);
     });
     if (!ok)

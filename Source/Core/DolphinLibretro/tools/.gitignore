@@ -1,3 +1,4 @@
 # Manual-compile unit-test binaries (built per their header comments); never committed.
 test_core_options
 test_memory_map
+test_state_header
