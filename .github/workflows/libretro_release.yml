@@ -61,7 +61,7 @@ jobs:
           # vendored Externals/fmt instead (USE_SYSTEM_FMT=OFF below), which
           # also drops the libfmt.dylib runtime dependency from the release.
           arch -x86_64 /usr/local/bin/brew install \
-            cmake ninja pkg-config sdl3 lz4 lzo xz zstd libpng
+            cmake ninja pkg-config sdl3 lz4 lzo xz zstd libpng dylibbundler
 
       - name: Configure (x86_64, scrubbing /opt/homebrew)
         run: |
@@ -96,13 +96,26 @@ jobs:
           test -f "$DYLIB"
           file "$DYLIB"            # expect: Mach-O 64-bit ... x86_64
           mkdir -p stage && cp "$DYLIB" stage/
+          # Bundle non-system deps (SDL3/lzo/lz4/xz/zstd) beside the dylib so
+          # the release doesn't depend on the user's Homebrew versions — a
+          # versioned-dylib mismatch = silent dlopen failure (this broke
+          # in-app-updated pcsx2 on 2026-07-04; dolphin has the same latent
+          # exposure). dylibbundler rewrites load commands to
+          # @loader_path/dolphin_libretro_libs/ and ad-hoc signs.
+          ( cd stage && arch -x86_64 dylibbundler -od -b \
+              -x dolphin_libretro.dylib \
+              -d dolphin_libretro_libs/ \
+              -p @loader_path/dolphin_libretro_libs/ )
+          if otool -L stage/dolphin_libretro.dylib | tail -n +2 | grep -E '/usr/local|/opt/homebrew'; then
+            echo "::error::dolphin core still references Homebrew after bundling"; exit 1
+          fi
           # SP9: ship Sys data beside the dylib. The core points Sys at
           # dolphin_libretro_resources/Sys via dladdr (LibretroFrontend.cpp),
           # so GitHub-installed cores work without any host-side deploy step.
           mkdir -p stage/dolphin_libretro_resources
           cp -R Data/Sys stage/dolphin_libretro_resources/Sys
           test -f stage/dolphin_libretro_resources/Sys/GC/font_western.bin
-          (cd stage && zip -qr ../dolphin_libretro.dylib.zip dolphin_libretro.dylib dolphin_libretro_resources)
+          (cd stage && zip -qr ../dolphin_libretro.dylib.zip dolphin_libretro.dylib dolphin_libretro_resources dolphin_libretro_libs)
           ls -la dolphin_libretro.dylib.zip
 
       - uses: actions/upload-artifact@v4
