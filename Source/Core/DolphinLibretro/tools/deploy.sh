@@ -30,5 +30,14 @@ mkdir -p "$APP_RESOURCES"
 rm -rf "$APP_RESOURCES/Sys"
 cp -R "$REPO_ROOT/Data/Sys" "$APP_RESOURCES/Sys"
 
+# SP9: also stage Sys beside the dylib (dolphin_libretro_resources/Sys) — the
+# core prefers this layout (dladdr lookup in LibretroFrontend.cpp), matching
+# the CI release zip, so local and GitHub-installed cores exercise the SAME
+# path. The app-bundle copy above stays as a fallback only.
+echo "Sys -> $CORES_DIR/dolphin_libretro_resources/Sys"
+rm -rf "$CORES_DIR/dolphin_libretro_resources"
+mkdir -p "$CORES_DIR/dolphin_libretro_resources"
+cp -R "$REPO_ROOT/Data/Sys" "$CORES_DIR/dolphin_libretro_resources/Sys"
+
 echo "Deployed:"
 lipo -info "$CORES_DIR/dolphin_libretro.dylib"

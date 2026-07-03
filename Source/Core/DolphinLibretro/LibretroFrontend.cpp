@@ -19,6 +19,7 @@
 #include "DolphinLibretro/LibretroInputSource.h"
 
 #include "Common/Buffer.h"
+#include "Common/FileUtil.h"
 #include "Common/Config/Config.h"
 #include "Common/Event.h"
 #include "Common/Logging/Log.h"
@@ -37,6 +38,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <dlfcn.h>
 #include <cstring>
 #include <memory>
 #include <span>
@@ -503,6 +505,43 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game)
         DolphinLibretro::Environment::Log(RETRO_LOG_ERROR,
             "[retro_load_game] no game / no path");
         return false;
+    }
+
+    // SP9: point Sys at dolphin_libretro_resources/Sys beside the dylib when
+    // present (the CI release zip and tools/deploy.sh both ship that layout).
+    // Without this, macOS resolves Sys inside the HOST APP's bundle
+    // (Contents/Resources/Sys) — which only exists on machines where
+    // deploy.sh copied it there, so GitHub-installed cores had no Sys at all.
+    // Must run before the first File::GetSysDirectory() call (cached), and
+    // only once per process (second retro_load_game: the cache already stuck).
+    {
+        static bool s_sys_dir_checked = false;
+        if (!s_sys_dir_checked)
+        {
+            s_sys_dir_checked = true;
+            Dl_info dl_info{};
+            if (dladdr(reinterpret_cast<const void*>(&retro_load_game), &dl_info) &&
+                dl_info.dli_fname)
+            {
+                std::string dylib_dir(dl_info.dli_fname);
+                const auto slash = dylib_dir.find_last_of('/');
+                if (slash != std::string::npos)
+                    dylib_dir.resize(slash);
+                const std::string sys = dylib_dir + "/dolphin_libretro_resources/Sys";
+                if (File::IsDirectory(sys))
+                {
+                    File::SetSysDirectory(sys);
+                    DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+                        "[Frontend] Sys directory -> %s", sys.c_str());
+                }
+                else
+                {
+                    DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+                        "[Frontend] no %s — falling back to the host app bundle Sys",
+                        sys.c_str());
+                }
+            }
+        }
     }
 
     // Compute the RetroAchievements hash + game serial via DiscIO (handles RVZ

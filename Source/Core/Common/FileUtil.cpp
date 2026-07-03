@@ -757,8 +757,24 @@ std::string GetExeDirectory()
   return PathToString(StringToPath(GetExePath()).parent_path());
 }
 
+// SP9 (libretro): non-Android Sys override, set by the libretro core when a
+// dolphin_libretro_resources/Sys folder ships beside the dylib. Android keeps
+// its own s_android_sys_directory (asserted non-empty below).
+#ifndef ANDROID
+static std::string s_sys_directory_override;
+#endif
+
 static std::string CreateSysDirectoryPath()
 {
+#ifndef ANDROID
+  // SP9 (libretro): an explicit override wins over every platform default.
+  if (!s_sys_directory_override.empty())
+  {
+    INFO_LOG_FMT(COMMON, "CreateSysDirectoryPath: using override {}", s_sys_directory_override);
+    return s_sys_directory_override + DIR_SEP;
+  }
+#endif
+
 #if defined(_WIN32) || defined(LINUX_LOCAL_DEV)
 #define SYSDATA_DIR "Sys"
 #elif defined __APPLE__
@@ -800,7 +816,17 @@ void SetSysDirectory(const std::string& path)
              s_android_sys_directory);
   s_android_sys_directory = path;
 }
+#else
+// SP9 (libretro): see FileUtil.h. Must run before the first GetSysDirectory()
+// call — its result is cached in a function-local static.
+void SetSysDirectory(const std::string& path)
+{
+  INFO_LOG_FMT(COMMON, "Setting Sys directory override to {}", path);
+  s_sys_directory_override = path;
+}
+#endif
 
+#ifdef ANDROID
 void SetGpuDriverDirectories(const std::string& path, const std::string& lib_path)
 {
   INFO_LOG_FMT(COMMON, "Setting Driver directory to {} and library path to {}", path, lib_path);

@@ -96,7 +96,13 @@ jobs:
           test -f "$DYLIB"
           file "$DYLIB"            # expect: Mach-O 64-bit ... x86_64
           mkdir -p stage && cp "$DYLIB" stage/
-          (cd stage && zip -j ../dolphin_libretro.dylib.zip dolphin_libretro.dylib)
+          # SP9: ship Sys data beside the dylib. The core points Sys at
+          # dolphin_libretro_resources/Sys via dladdr (LibretroFrontend.cpp),
+          # so GitHub-installed cores work without any host-side deploy step.
+          mkdir -p stage/dolphin_libretro_resources
+          cp -R Data/Sys stage/dolphin_libretro_resources/Sys
+          test -f stage/dolphin_libretro_resources/Sys/GC/font_western.bin
+          (cd stage && zip -qr ../dolphin_libretro.dylib.zip dolphin_libretro.dylib dolphin_libretro_resources)
           ls -la dolphin_libretro.dylib.zip
 
       - uses: actions/upload-artifact@v4

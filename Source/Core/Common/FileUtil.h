@@ -236,8 +236,12 @@ std::string GetThemeDir(const std::string& theme_name);
 // Returns the path to where the sys file are
 const std::string& GetSysDirectory();
 
-#ifdef ANDROID
+// SP9 (libretro): available on all platforms — the libretro core points Sys
+// at a folder shipped beside the dylib. Must be called before the first
+// GetSysDirectory() call (its result is cached in a function-local static).
 void SetSysDirectory(const std::string& path);
+
+#ifdef ANDROID
 void SetGpuDriverDirectories(const std::string& path, const std::string& lib_path);
 const std::string GetGpuDriverDirectory(unsigned int dir_index);
 #endif
