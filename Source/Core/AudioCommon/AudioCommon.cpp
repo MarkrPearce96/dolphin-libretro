@@ -47,6 +47,13 @@ static std::unique_ptr<SoundStream> CreateSoundStreamForBackend(std::string_view
 
 void InitSoundStream(Core::System& system)
 {
+  // SP9 (libretro): if the frontend pre-installed a SoundStream (the libretro
+  // audio bridge, installed in retro_load_game before boot), keep it — don't
+  // replace it with a platform backend. Upstream never pre-installs a stream
+  // (ShutdownSoundStream nulls it), so this only fires for the libretro path.
+  if (system.GetSoundStream())
+    return;
+
   std::string backend = Config::Get(Config::MAIN_AUDIO_BACKEND);
   std::unique_ptr<SoundStream> sound_stream = CreateSoundStreamForBackend(backend);
 

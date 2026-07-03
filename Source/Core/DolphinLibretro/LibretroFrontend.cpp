@@ -1,9 +1,11 @@
 // SP2: retro_* C ABI entrypoints — real implementation.
 //
 // retro_load_game boots a GameCube/Wii ROM via BootManager::BootCore.
-// retro_run advances Dolphin by ~1 frame and the libretro audio batch
-// callback gets samples via LibretroAudioStream's drain thread (which
-// reads g_audio_batch_cb directly). Video is pushed into the host's
+// retro_run advances Dolphin by ~1 frame and drains one host frame of
+// audio from LibretroAudioStream's mixer through g_audio_batch_cb (SP9:
+// synchronous on the libretro thread — no drain thread; the stream
+// survives boot via the AudioCommon::InitSoundStream pre-install guard).
+// Video is pushed into the host's
 // CAMetalLayer by Dolphin's Metal backend — no video_refresh_cb call
 // is needed since the libretro frontend (RetroNest) composites the
 // layer directly.
@@ -194,7 +196,9 @@ RETRO_API void retro_get_system_av_info(struct retro_system_av_info* info)
     info->geometry.max_height   = 4096;
     info->geometry.aspect_ratio = 4.0f / 3.0f;
     info->timing.fps            = 60.0;
-    info->timing.sample_rate    = 32000.0;
+    // Must match LibretroAudioStream's mixer rate — the host opens its audio
+    // sink at this rate (previously said 32000 while the mixer ran at 48000).
+    info->timing.sample_rate    = static_cast<double>(DolphinLibretro::LibretroAudioStream::kSampleRate);
 }
 
 RETRO_API void retro_set_environment(retro_environment_t cb)
@@ -316,6 +320,16 @@ RETRO_API void retro_run(void)
         MaybeEmitMemoryMap();
         MaybeApplyPendingResume();
         s_emu_thread->WaitForFrame();
+
+        // SP9: drain one host frame of audio, synchronously on this thread —
+        // the only thread the libretro contract allows audio callbacks from.
+        // The installed stream is always ours during a session (retro_load_game
+        // installs it; the InitSoundStream guard preserves it through boot).
+        if (auto* stream = dynamic_cast<DolphinLibretro::LibretroAudioStream*>(
+                Core::System::GetInstance().GetSoundStream()))
+        {
+            stream->DrainToFrontend(DolphinLibretro::Frontend::g_audio_batch_cb);
+        }
     }
 }
 
