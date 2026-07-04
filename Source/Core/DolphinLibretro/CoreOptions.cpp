@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "CoreOptions.h"
+#include "retronest-libretro/emit_core_options_v2.h"
 
 #ifdef CORE_OPTIONS_TEST_ONLY
 #include <cstdarg>
@@ -42,12 +43,7 @@ const std::vector<retro_core_option_v2_definition>& BuildDefinitions()
 
 bool EmitCoreOptionsV2(retro_environment_t cb)
 {
-    if (!cb) return false;
-    retro_core_options_v2 opts{};
-    opts.categories  = nullptr;  // uncategorized; host adapter groups via SettingDef.category
-    opts.definitions = const_cast<retro_core_option_v2_definition*>(
-        BuildDefinitions().data());
-    const bool ok = cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &opts);
+    const bool ok = retronest::EmitCoreOptionsV2(cb, BuildDefinitions().data());
     if (!ok) {
         CORE_OPTIONS_LOG(RETRO_LOG_WARN,
             "[CoreOptions] Host does not support core-option categories "

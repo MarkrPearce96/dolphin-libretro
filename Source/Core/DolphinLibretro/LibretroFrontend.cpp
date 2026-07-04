@@ -10,6 +10,10 @@
 // is needed since the libretro frontend (RetroNest) composites the
 // layer directly.
 
+// Compile-check the retronest_* export signatures against the contract.
+#define RETRONEST_LIBRETRO_CORE
+#include "DolphinLibretro/retronest-libretro/retronest_libretro.h"
+
 #include "DolphinLibretro/libretro.h"
 #include "DolphinLibretro/EmuThread.h"
 #include "DolphinLibretro/LibretroEnvironment.h"

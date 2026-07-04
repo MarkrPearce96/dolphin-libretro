@@ -36,6 +36,14 @@ target_include_directories(dolphin_libretro PRIVATE
     "${CMAKE_SOURCE_DIR}/Source/Core"
 )
 
+# Packet 7: the vendored contract package must match its manifest — edits
+# belong in RetroNest-Project/vendor/retronest-libretro/ + sync.sh.
+add_custom_target(retronest_contract_check ALL
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/retronest-libretro/check-drift.sh
+    COMMENT "retronest-libretro drift check"
+    VERBATIM
+)
+
 # Link Dolphin's static libs. core + uicommon transitively pull in
 # audiocommon, videocommon, inputcommon, discio, videobackends, common.
 target_link_libraries(dolphin_libretro PRIVATE

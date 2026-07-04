@@ -8,26 +8,15 @@
 #pragma once
 
 #include "DolphinLibretro/libretro.h"
+#include "DolphinLibretro/retronest-libretro/retronest_libretro.h"
 
 namespace DolphinLibretro::Environment {
 
-// Hand a host-owned NSView* to the core for Metal rendering.
-// retro_environment_t cb writes a (void* NSView) into the data ptr.
-// Matches RETRONEST_ENVIRONMENT_GET_MACOS_NSVIEW = (1 | RETRO_ENVIRONMENT_PRIVATE).
-constexpr unsigned RETRONEST_GET_MACOS_NSVIEW = (1u | RETRO_ENVIRONMENT_PRIVATE);
-
-// (ids 2-4 are reserved by the host — see RetroNest environment_callbacks.h.)
-// Matches host RETRONEST_ENVIRONMENT_SET_GAME_IDENTITY = (5 | RETRO_ENVIRONMENT_PRIVATE).
-// The core CALLS this during retro_load_game to hand the host the game's
-// RetroAchievements hash + serial (both computed via DiscIO, so RVZ works).
-// data is a RetroNestGameIdentity*; the host copies both strings.
-constexpr unsigned RETRONEST_SET_GAME_IDENTITY = (5u | RETRO_ENVIRONMENT_PRIVATE);
-
-struct RetroNestGameIdentity
-{
-    const char* ra_hash;  // rcheevos hash string, or "" if unavailable
-    const char* serial;   // game id e.g. "GZ2P01", or "" if unavailable
-};
+// Canonical values + docs live in retronest-libretro/retronest_libretro.h.
+// These aliases keep dolphin's historical spellings compiling.
+constexpr unsigned RETRONEST_GET_MACOS_NSVIEW = RETRONEST_ENVIRONMENT_GET_MACOS_NSVIEW;
+constexpr unsigned RETRONEST_SET_GAME_IDENTITY = RETRONEST_ENVIRONMENT_SET_GAME_IDENTITY;
+using RetroNestGameIdentity = retronest_game_identity;
 
 // Stores the frontend's environ_cb at retro_set_environment time so other
 // modules can use it. Caller-friendly wrappers below.
