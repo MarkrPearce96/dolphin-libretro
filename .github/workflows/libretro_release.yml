@@ -100,25 +100,12 @@ jobs:
           # the release doesn't depend on the user's Homebrew versions — a
           # versioned-dylib mismatch = silent dlopen failure (this broke
           # in-app-updated pcsx2 on 2026-07-04; dolphin has the same latent
-          # exposure). dylibbundler rewrites load commands to
-          # @loader_path/dolphin_libretro_libs/ and ad-hoc signs.
-          ( cd stage && arch -x86_64 dylibbundler -od -b \
-              -x dolphin_libretro.dylib \
-              -d dolphin_libretro_libs/ \
-              -p @loader_path/dolphin_libretro_libs/ )
-          # Flatten sibling refs inside the libs dir (see pcsx2 workflow): a
-          # lib inside dolphin_libretro_libs/ has that dir as @loader_path, so
-          # dylibbundler's subdir prefix doubles the path and breaks dlopen.
-          for lib in stage/dolphin_libretro_libs/*.dylib; do
-            otool -L "$lib" | tail -n +2 | awk '{print $1}' \
-              | grep '@loader_path/dolphin_libretro_libs/' | while read -r dep; do
-                install_name_tool -change "$dep" "@loader_path/$(basename "$dep")" "$lib"
-              done
-            codesign --force --sign - "$lib"
-          done
-          if otool -L stage/dolphin_libretro.dylib | tail -n +2 | grep -E '/usr/local|/opt/homebrew'; then
-            echo "::error::dolphin core still references Homebrew after bundling"; exit 1
-          fi
+          # exposure). Bundle + flatten + sign + verify all live in the
+          # vendored contract package (deploy-contract.md §Dependency
+          # bundling) — shared with pcsx2's workflow, drift-checked like
+          # every package file.
+          Source/Core/DolphinLibretro/retronest-libretro/package-core.sh \
+            stage/dolphin_libretro.dylib --arch x86_64
           # SP9: ship Sys data beside the dylib. The core points Sys at
           # dolphin_libretro_resources/Sys via dladdr (LibretroFrontend.cpp),
           # so GitHub-installed cores work without any host-side deploy step.
