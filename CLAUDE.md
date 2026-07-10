@@ -41,6 +41,23 @@ options (`CoreOptions*.cpp` → `SET_CORE_OPTIONS_V2`). Changing option
 keys/values/defaults here flows into RetroNest automatically after a
 rebuild + re-probe; follow `retronest-libretro/docs/option-style-guide.md`.
 
-## Upstream rebase
-See `UPSTREAM-UPDATE.md`. Dolphin save states are arch-sensitive (arm64
-states won't load under x86_64).
+## Updating from upstream (carries patches — a sync is real work)
+Unlike the stock `mgba-libretro` mirror, this fork carries RetroNest source
+patches (NSView/Metal handoff, the `RETRONEST_ENVIRONMENT_*` contract,
+CoreOptions), so an upstream sync **can and will conflict**. `upstream` =
+`dolphin-emu/dolphin`, branch `libretro`, release arch **x86_64**. Full
+provenance/recipe: `UPSTREAM-UPDATE.md`.
+```sh
+git fetch upstream
+git merge upstream/master        # onto the 'libretro' branch; resolve conflicts
+                                 # where upstream touched our patched code
+# if the contract package changed, re-sync from RetroNest-Project:
+#   ./vendor/retronest-libretro/sync.sh   (build fails on drift otherwise)
+# REBUILD LOCALLY + TEST IN RETRONEST — not just "compiles": confirm rendering
+# (NSView handoff), GC+Wii controllers, settings schema still work.
+git push origin libretro
+git tag v2026.MM.DD && git push origin v2026.MM.DD   # CI rebuilds + republishes
+```
+Only sync when you actually want an upstream fix/feature — each sync costs
+conflict-resolution + a full retest. **Dolphin save states are arch-sensitive**
+(arm64 states won't load under x86_64), so make fresh states after arch changes.
