@@ -23,6 +23,7 @@
 #include "DolphinLibretro/LibretroInputSource.h"
 
 #include "Common/Buffer.h"
+#include "Common/CommonPaths.h"
 #include "Common/FileUtil.h"
 #include "Common/Config/Config.h"
 #include "Common/Event.h"
@@ -263,6 +264,28 @@ RETRO_API void retro_init(void)
     }
     DolphinLibretro::Environment::Log(RETRO_LOG_INFO, "[Frontend] user dir: %s", user_dir.c_str());
     UICommon::SetUserDirectory(user_dir);
+
+    // RetroNest per-emulator MemoryCards override (its Paths settings page): if
+    // the host provides one via the private GET_MEMCARDS_DIR env, redirect the GC
+    // memory-card directory (D_GCUSER_IDX — where MemoryCardA/B default). Applied
+    // after SetUserDirectory (which derived the default under the User dir) and
+    // before boot: Config::GetMemcardPath falls back to GetUserPath(D_GCUSER_IDX)
+    // at runtime when the per-card path is unset (the default), so this cleanly
+    // moves the cards without touching config or Wii NAND.
+    if (auto cb = DolphinLibretro::Environment::GetEnvironmentCallback())
+    {
+        const char* mc = nullptr;
+        if (cb(RETRONEST_ENVIRONMENT_GET_MEMCARDS_DIR, &mc) && mc && *mc)
+        {
+            std::string mcdir(mc);
+            if (mcdir.back() != DIR_SEP_CHR)
+                mcdir += DIR_SEP;
+            File::SetUserPath(D_GCUSER_IDX, mcdir);
+            DolphinLibretro::Environment::Log(RETRO_LOG_INFO,
+                "[Frontend] GC memcards override: %s", mcdir.c_str());
+        }
+    }
+
     UICommon::Init();
 
     // Optionally route Dolphin's own LogManager output to stderr at INFO level
