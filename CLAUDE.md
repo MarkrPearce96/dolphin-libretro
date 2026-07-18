@@ -7,8 +7,9 @@ loaded in-process by RetroNest. Branch: **`libretro`** (not main), remote
 
 ## Build + arch policy
 Local build dirs: `build-libretro` (arm64) + `build-libretro-x86_64`.
-Local deploys are **universal**; CI releases are x86_64-only (mirrors
-pcsx2 while the daily driver is the Rosetta app). x86_64 CMake invocations
+Local deploys are **universal**; CI releases are **universal too** (since
+2026-07-18: both arches built in one job, dep-bundled per-arch, lipo'd
+pairwise — same shape as deploy.sh). x86_64 CMake invocations
 MUST use `arch -x86_64 /usr/local/bin/cmake` — bare `arch -x86_64 cmake`
 resolves to the arm64 Homebrew cmake and dies with "Bad CPU type". Never
 pipe build output (masks the exit status).
@@ -22,9 +23,10 @@ it + the `dolphin_libretro_resources/Sys` tree into
 `~/Documents/RetroNest/emulators/libretro/cores/`.
 
 ## Releases (CI)
-`.github/workflows/libretro_release.yml` on tags (`v2026.MM.DD[.n]`).
-Builds with vendored fmt (`USE_SYSTEM_FMT=OFF` — brew fmt 12.x breaks
-consteval asserts), zips the Sys tree, and is **self-contained**:
+`.github/workflows/libretro_release.yml` on tags (`v2026.MM.DD[.n]`);
+`workflow_dispatch` runs a publish-free dry-run (release job is tag-gated).
+Builds a UNIVERSAL dylib with vendored fmt (`USE_SYSTEM_FMT=OFF` — brew
+fmt 12.x breaks consteval asserts), zips the Sys tree, and is **self-contained**:
 dylibbundler copies deps into `dolphin_libretro_libs/` with flat
 `@loader_path/<lib>` refs + ad-hoc signing (otool guard enforces no bare
 Homebrew paths).

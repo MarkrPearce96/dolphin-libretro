@@ -1,23 +1,32 @@
 name: libretro_release
 
-# Builds the dolphin-libretro core (macOS x86_64) on a v* tag push and publishes
-# a GitHub Release with dolphin_libretro.dylib.zip — the asset RetroNest installs.
-# Mirrors the pcsx2-libretro / ppsspp-libretro release workflows.
+# Builds the dolphin-libretro core as a macOS UNIVERSAL (arm64 + x86_64)
+# dylib on a v* tag push and publishes a GitHub Release with
+# dolphin_libretro.dylib.zip — the asset RetroNest installs. Keeping the
+# historical single-asset name means every existing install keeps working
+# and both RetroNest app slices (native arm64 + Rosetta) load the same
+# core. Each arch is built + dep-bundled separately (Homebrew libs are
+# thin), then dylib and bundled libs are lipo'd pairwise and re-signed —
+# the same shape as the local deploy.sh flow.
 
 on:
   push:
     tags: ['v*']
+  # Manual dry-run: builds + packages, but the release job is tag-gated
+  # so nothing is published.
+  workflow_dispatch:
 
 permissions:
   contents: write  # required for softprops/action-gh-release to create releases
 
 jobs:
   build:
-    name: Build macOS x86_64
-    # macos-14 = Apple Silicon; we build x86_64 via Rosetta + x86_64 Homebrew at
-    # /usr/local. Chosen over macos-13 because the Intel runner pool is starved.
+    name: Build macOS universal (arm64 + x86_64)
+    # macos-14 = Apple Silicon; the x86_64 half builds via Rosetta + x86_64
+    # Homebrew at /usr/local, the arm64 half natively via /opt/homebrew.
+    # Chosen over macos-13 because the Intel runner pool is starved.
     runs-on: macos-14
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,28 +93,85 @@ jobs:
               -DUSE_SYSTEM_FMT=OFF \
               -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build dolphin_libretro
+      - name: Build dolphin_libretro (x86_64)
         run: |
           arch -x86_64 env PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
             /usr/local/bin/cmake --build build --target dolphin_libretro -j
 
-      - name: Package dolphin_libretro.dylib.zip
+      - name: Install dependencies (arm64)
+        run: |
+          # Native /opt/homebrew half of the same dep set.
+          brew install \
+            cmake ninja pkg-config sdl3 lz4 lzo xz zstd libpng dylibbundler
+
+      - name: Configure (arm64, scrubbing /usr/local)
+        run: |
+          # Mirror-image prefix hygiene of the x86_64 configure. Both IGNORE
+          # flags: config-mode find_package searches prefix roots, plain
+          # IGNORE_PATH alone lets x86_64 libs leak in (pcsx2 arm64 lane
+          # lesson, 2026-07-18).
+          /opt/homebrew/bin/cmake -S . -B build-arm64 -G Ninja \
+            -DCMAKE_PREFIX_PATH=/opt/homebrew \
+            -DCMAKE_IGNORE_PATH=/usr/local \
+            -DCMAKE_IGNORE_PREFIX_PATH=/usr/local \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DENABLE_LIBRETRO=ON \
+            -DENABLE_QT=OFF \
+            -DENABLE_NOGUI=OFF \
+            -DENABLE_TESTS=OFF \
+            -DENCODE_FRAMEDUMPS=OFF \
+            -DUSE_SYSTEM_FMT=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build dolphin_libretro (arm64)
+        run: |
+          /opt/homebrew/bin/cmake --build build-arm64 --target dolphin_libretro -j
+
+      - name: Package universal dolphin_libretro.dylib.zip
         run: |
           set -euo pipefail
-          DYLIB=build/Source/Core/DolphinLibretro/dolphin_libretro.dylib
-          test -f "$DYLIB"
-          file "$DYLIB"            # expect: Mach-O 64-bit ... x86_64
-          mkdir -p stage && cp "$DYLIB" stage/
-          # Bundle non-system deps (SDL3/lzo/lz4/xz/zstd) beside the dylib so
+          X86_DYLIB=build/Source/Core/DolphinLibretro/dolphin_libretro.dylib
+          ARM_DYLIB=build-arm64/Source/Core/DolphinLibretro/dolphin_libretro.dylib
+          test -f "$X86_DYLIB" && file "$X86_DYLIB"   # expect x86_64
+          test -f "$ARM_DYLIB" && file "$ARM_DYLIB"   # expect arm64
+          # Bundle non-system deps (SDL3/lzo/lz4/xz/zstd) beside each dylib so
           # the release doesn't depend on the user's Homebrew versions — a
           # versioned-dylib mismatch = silent dlopen failure (this broke
-          # in-app-updated pcsx2 on 2026-07-04; dolphin has the same latent
-          # exposure). Bundle + flatten + sign + verify all live in the
-          # vendored contract package (deploy-contract.md §Dependency
-          # bundling) — shared with pcsx2's workflow, drift-checked like
-          # every package file.
+          # in-app-updated pcsx2 on 2026-07-04). Bundle + flatten + sign +
+          # verify live in the vendored contract package (deploy-contract.md
+          # §Dependency bundling), drift-checked like every package file.
+          # Homebrew libs are thin, so each arch bundles separately and the
+          # results are lipo'd pairwise below.
+          mkdir -p stage-x86_64 stage-arm64 stage/dolphin_libretro_libs
+          cp "$X86_DYLIB" stage-x86_64/ && cp "$ARM_DYLIB" stage-arm64/
           Source/Core/DolphinLibretro/retronest-libretro/package-core.sh \
-            stage/dolphin_libretro.dylib --arch x86_64
+            stage-x86_64/dolphin_libretro.dylib --arch x86_64
+          Source/Core/DolphinLibretro/retronest-libretro/package-core.sh \
+            stage-arm64/dolphin_libretro.dylib --arch arm64
+          # Lipo the core; then the bundled libs pairwise. The two libs dirs
+          # must contain the SAME set of names — a difference means the arch
+          # builds resolved different deps and the universal core would fail
+          # on whichever slice is missing one, so fail the build loudly.
+          lipo -create stage-x86_64/dolphin_libretro.dylib \
+                       stage-arm64/dolphin_libretro.dylib \
+               -output stage/dolphin_libretro.dylib
+          diff <(ls stage-x86_64/dolphin_libretro_libs | sort) \
+               <(ls stage-arm64/dolphin_libretro_libs | sort)
+          for lib in stage-arm64/dolphin_libretro_libs/*.dylib; do
+            name=$(basename "$lib")
+            lipo -create "stage-x86_64/dolphin_libretro_libs/$name" "$lib" \
+                 -output "stage/dolphin_libretro_libs/$name"
+            codesign --force --sign - "stage/dolphin_libretro_libs/$name"
+          done
+          codesign --force --sign - stage/dolphin_libretro.dylib
+          # Verify: both slices present, no bare Homebrew refs in either.
+          lipo -info stage/dolphin_libretro.dylib | tee /dev/stderr \
+            | grep -q "x86_64 arm64\|arm64 x86_64"
+          if otool -L stage/dolphin_libretro.dylib | tail -n +2 \
+               | grep -E '/usr/local|/opt/homebrew'; then
+            echo "::error::universal dylib still references Homebrew paths"
+            exit 1
+          fi
           # SP9: ship Sys data beside the dylib. The core points Sys at
           # dolphin_libretro_resources/Sys via dladdr (LibretroFrontend.cpp),
           # so GitHub-installed cores work without any host-side deploy step.
@@ -124,6 +190,7 @@ jobs:
   release:
     name: Publish release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -143,8 +210,11 @@ jobs:
       - name: Compose body
         run: |
           {
-            echo "**Platform:** macOS x86_64 (Intel + Apple Silicon via Rosetta)"
+            echo "**Platform:** macOS universal (Apple Silicon native arm64 + Intel/Rosetta x86_64)"
             echo "**Upstream Dolphin:** ${{ steps.meta.outputs.upstream_short }} (master)"
+            echo ""
+            echo "Note: Dolphin save states are arch-sensitive — states made on one"
+            echo "arch won't load on the other. In-game (battery/memcard) saves are fine."
           } > body.md
       - uses: softprops/action-gh-release@v2
         with:
