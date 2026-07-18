@@ -91,6 +91,7 @@ jobs:
               -DENABLE_TESTS=OFF \
               -DENCODE_FRAMEDUMPS=OFF \
               -DUSE_SYSTEM_FMT=OFF \
+              -DUSE_SYSTEM_LIBUSB=OFF \
               -DCMAKE_BUILD_TYPE=Release
 
       - name: Build dolphin_libretro (x86_64)
@@ -121,6 +122,7 @@ jobs:
             -DENABLE_TESTS=OFF \
             -DENCODE_FRAMEDUMPS=OFF \
             -DUSE_SYSTEM_FMT=OFF \
+            -DUSE_SYSTEM_LIBUSB=OFF \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build dolphin_libretro (arm64)
