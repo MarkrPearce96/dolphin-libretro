@@ -144,10 +144,16 @@ jobs:
           # results are lipo'd pairwise below.
           mkdir -p stage-x86_64 stage-arm64 stage/dolphin_libretro_libs
           cp "$X86_DYLIB" stage-x86_64/ && cp "$ARM_DYLIB" stage-arm64/
-          Source/Core/DolphinLibretro/retronest-libretro/package-core.sh \
-            stage-x86_64/dolphin_libretro.dylib --arch x86_64
-          Source/Core/DolphinLibretro/retronest-libretro/package-core.sh \
-            stage-arm64/dolphin_libretro.dylib --arch arm64
+          # PATH pins: BOTH brews now ship dylibbundler and /opt/homebrew/bin
+          # shadows /usr/local/bin in the default PATH — `arch -x86_64` on
+          # the arm64-only binary dies with "Bad CPU type". Each call gets
+          # the matching brew prefix first.
+          env PATH="/usr/local/bin:$PATH" \
+            Source/Core/DolphinLibretro/retronest-libretro/package-core.sh \
+              stage-x86_64/dolphin_libretro.dylib --arch x86_64
+          env PATH="/opt/homebrew/bin:$PATH" \
+            Source/Core/DolphinLibretro/retronest-libretro/package-core.sh \
+              stage-arm64/dolphin_libretro.dylib --arch arm64
           # Lipo the core; then the bundled libs pairwise. The two libs dirs
           # must contain the SAME set of names — a difference means the arch
           # builds resolved different deps and the universal core would fail
